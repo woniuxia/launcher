@@ -1,5 +1,6 @@
 package cn.whc.launcher.data.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -72,11 +73,11 @@ interface AppDao {
 }
 
 data class PackageLaunchTime(
-    val packageName: String,
-    val lastLaunchTime: Long
+    @ColumnInfo(name = "package_name") val packageName: String,
+    @ColumnInfo(name = "last_launch_time") val lastLaunchTime: Long
 )
 
 data class PackageCustomName(
-    val packageName: String,
-    val customName: String
+    @ColumnInfo(name = "package_name") val packageName: String,
+    @ColumnInfo(name = "custom_name") val customName: String
 )

@@ -98,10 +98,19 @@ class LauncherViewModel @Inject constructor(
      * 启动应用
      */
     fun launchApp(packageName: String) {
+        // 先启动应用，确保响应即时
+        appRepository.launchApp(packageName)
+        // 异步记录启动统计，不阻塞用户操作
         viewModelScope.launch {
             appRepository.recordAppLaunch(packageName)
-            appRepository.launchApp(packageName)
         }
+    }
+
+    /**
+     * 打开系统时钟
+     */
+    fun openClock() {
+        appRepository.openClock()
     }
 
     /**

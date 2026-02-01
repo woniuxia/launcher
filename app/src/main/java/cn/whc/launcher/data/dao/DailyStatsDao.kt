@@ -1,5 +1,6 @@
 package cn.whc.launcher.data.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -60,6 +61,6 @@ interface DailyStatsDao {
 }
 
 data class PackageCount(
-    val packageName: String,
+    @ColumnInfo(name = "package_name") val packageName: String,
     val totalCount: Int
 )

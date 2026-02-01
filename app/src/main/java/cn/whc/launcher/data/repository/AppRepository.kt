@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.provider.AlarmClock
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
@@ -182,6 +183,21 @@ class AppRepository @Inject constructor(
             } else {
                 false
             }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 打开系统时钟应用
+     */
+    fun openClock(): Boolean {
+        return try {
+            val intent = Intent(AlarmClock.ACTION_SHOW_ALARMS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
         } catch (e: Exception) {
             false
         }

@@ -3,7 +3,9 @@ package cn.whc.launcher.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.AppSettings
+import cn.whc.launcher.ui.components.AlphabetIndexBar
 import cn.whc.launcher.ui.components.AppGrid
 import cn.whc.launcher.ui.components.ClockWidget
 
@@ -28,8 +31,14 @@ import cn.whc.launcher.ui.components.ClockWidget
 @Composable
 fun HomePage(
     homeApps: List<AppInfo>,
+    availableLetters: Set<String>,
     settings: AppSettings,
     onAppClick: (AppInfo) -> Unit,
+    onClockClick: () -> Unit,
+    onLetterSelected: (String) -> Unit,
+    showFavorites: Boolean = false,
+    onFavoritesClick: (() -> Unit)? = null,
+    onSettingsClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -37,42 +46,57 @@ fun HomePage(
             .fillMaxSize()
             .statusBarsPadding()
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .offset(y = settings.layout.verticalOffset.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(48.dp))
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(start = 36.dp, end = 16.dp)
+                    .offset(y = settings.layout.verticalOffset.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(48.dp))
 
-            // 时间日期农历
-            ClockWidget(
-                settings = settings.clock,
-                textColor = Color.White
-            )
+                // 时间日期农历
+                ClockWidget(
+                    settings = settings.clock,
+                    textColor = Color.White,
+                    onClick = onClockClick
+                )
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-            // 应用网格
-            AppGrid(
-                apps = homeApps,
-                layoutSettings = settings.layout,
-                showShadow = settings.appearance.showShadow,
-                iconRadius = settings.appearance.iconRadius,
-                onAppClick = onAppClick,
-                modifier = Modifier.fillMaxWidth()
-            )
+                // 应用网格
+                AppGrid(
+                    apps = homeApps,
+                    layoutSettings = settings.layout,
+                    showShadow = settings.appearance.showShadow,
+                    iconRadius = settings.appearance.iconRadius,
+                    onAppClick = onAppClick,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-            Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.weight(1f))
+            }
 
-            // 上滑提示
-            Text(
-                text = "上滑打开应用抽屉",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 32.dp)
-            )
+            // 字母索引栏（只占下方2/3区域）
+            Box(
+                modifier = Modifier.fillMaxHeight(),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                AlphabetIndexBar(
+                    availableLetters = availableLetters,
+                    onLetterSelected = onLetterSelected,
+                    hapticEnabled = settings.gesture.hapticFeedback,
+                    showFavorites = showFavorites,
+                    onFavoritesClick = onFavoritesClick,
+                    showSettings = onSettingsClick != null,
+                    onSettingsClick = onSettingsClick,
+                    modifier = Modifier
+                        .fillMaxHeight(0.67f)
+                        .padding(vertical = 32.dp, horizontal = 4.dp)
+                )
+            }
         }
     }
 }

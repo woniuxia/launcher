@@ -1,5 +1,6 @@
 package cn.whc.launcher.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
@@ -30,7 +31,8 @@ import java.util.Locale
 fun ClockWidget(
     settings: ClockSettings,
     modifier: Modifier = Modifier,
-    textColor: Color = Color.White
+    textColor: Color = Color.White,
+    onClick: () -> Unit = {}
 ) {
     var currentTime by remember { mutableStateOf(LocalTime.now()) }
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
@@ -45,7 +47,7 @@ fun ClockWidget(
     }
 
     Column(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

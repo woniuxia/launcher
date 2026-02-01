@@ -101,23 +101,33 @@ object LunarCalendar {
         // 计算农历月份
         var lunarMonth = 1
         var daysInMonth: Int
-        while (lunarMonth < 13) {
-            if (leapMonth > 0 && lunarMonth == leapMonth + 1 && !isLeap) {
-                lunarMonth--
+        var monthCount = 0
+        while (monthCount < 13 && lunarMonth <= 12) {
+            if (leapMonth > 0 && lunarMonth == leapMonth && !isLeap) {
+                // 先处理正常月份
+                daysInMonth = getLunarMonthDays(lunarYear, lunarMonth)
+                if (offset < daysInMonth) break
+                offset -= daysInMonth
+                monthCount++
+                // 接下来处理闰月
                 isLeap = true
                 daysInMonth = getLeapDays(lunarYear)
+                if (offset < daysInMonth) break
+                offset -= daysInMonth
+                isLeap = false
+                monthCount++
+                lunarMonth++
             } else {
                 daysInMonth = getLunarMonthDays(lunarYear, lunarMonth)
+                if (offset < daysInMonth) break
+                offset -= daysInMonth
+                monthCount++
+                lunarMonth++
             }
-
-            if (offset < daysInMonth) break
-            offset -= daysInMonth
-
-            if (isLeap && lunarMonth == leapMonth + 1) {
-                isLeap = false
-            }
-            lunarMonth++
         }
+
+        // 确保月份在有效范围内
+        if (lunarMonth > 12) lunarMonth = 12
 
         val lunarDay = offset + 1
 
@@ -146,13 +156,7 @@ object LunarCalendar {
         var sum = 348 // 12个月，每月29天
         val info = LUNAR_INFO[year - 1900]
 
-        // 累加大月的额外天数
-        for (i in 0x8000 downTo 0x8 step 1) {
-            val bit = 0x8000 shr (15 - Integer.numberOfTrailingZeros(i))
-            if (info and (0x8000 shr (15 - i.countTrailingZeroBits())) != 0) {
-                sum++
-            }
-        }
+        // 累加大月的额外天数（检查高12位，每位代表一个月）
         var mask = 0x8000
         repeat(12) {
             if (info and mask != 0) sum++

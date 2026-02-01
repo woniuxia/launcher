@@ -35,6 +35,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 
+// 特殊索引符号
+const val SYMBOL_FAVORITES = "✦"
+const val SYMBOL_SETTINGS = "◎"
+
 /**
  * 字母索引栏组件
  */
@@ -43,21 +47,42 @@ fun AlphabetIndexBar(
     availableLetters: Set<String>,
     onLetterSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
-    hapticEnabled: Boolean = true
+    hapticEnabled: Boolean = true,
+    showFavorites: Boolean = false,
+    onFavoritesClick: (() -> Unit)? = null,
+    showSettings: Boolean = false,
+    onSettingsClick: (() -> Unit)? = null
 ) {
-    val letters = remember {
-        ('A'..'Z').map { it.toString() } + "#"
+    // 构建字母列表：✦ + 有数据的字母 + ◎
+    val letters = remember(availableLetters, showFavorites, showSettings) {
+        buildList {
+            if (showFavorites) add(SYMBOL_FAVORITES)
+            val allLetters = ('A'..'Z').map { it.toString() } + "#"
+            addAll(allLetters.filter { it in availableLetters })
+            if (showSettings) add(SYMBOL_SETTINGS)
+        }
     }
     var selectedLetter by remember { mutableStateOf<String?>(null) }
     var showPopup by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+
+    // 处理字母选择的回调
+    val handleLetterSelected: (String) -> Unit = { letter ->
+        when (letter) {
+            SYMBOL_FAVORITES -> onFavoritesClick?.invoke()
+            SYMBOL_SETTINGS -> onSettingsClick?.invoke()
+            else -> onLetterSelected(letter)
+        }
+    }
+
+    if (letters.isEmpty()) return
 
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
                 .width(28.dp)
                 .fillMaxHeight()
-                .pointerInput(Unit) {
+                .pointerInput(letters) {
                     detectVerticalDragGestures(
                         onDragStart = { offset ->
                             showPopup = true
@@ -70,10 +95,10 @@ fun AlphabetIndexBar(
                                 if (hapticEnabled) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
-                                onLetterSelected(letter)
+                                handleLetterSelected(letter)
                             }
                         },
-                        onDrag = { change, _ ->
+                        onVerticalDrag = { change, _ ->
                             change.consume()
                             val index = (change.position.y / (size.height.toFloat() / letters.size))
                                 .toInt()
@@ -84,7 +109,7 @@ fun AlphabetIndexBar(
                                 if (hapticEnabled) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
-                                onLetterSelected(letter)
+                                handleLetterSelected(letter)
                             }
                         },
                         onDragEnd = {
@@ -92,31 +117,34 @@ fun AlphabetIndexBar(
                         }
                     )
                 },
-            verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             letters.forEach { letter ->
-                val isAvailable = letter in availableLetters
-                Text(
-                    text = letter,
-                    fontSize = 10.sp,
-                    color = when {
-                        letter == selectedLetter && showPopup -> Color(0xFF007AFF)
-                        isAvailable -> Color.White.copy(alpha = 0.8f)
-                        else -> Color.White.copy(alpha = 0.3f)
-                    },
-                    fontWeight = if (letter == selectedLetter && showPopup) FontWeight.Bold else FontWeight.Normal,
-                    textAlign = TextAlign.Center,
+                Box(
                     modifier = Modifier
-                        .clickable(enabled = isAvailable) {
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clickable {
                             selectedLetter = letter
                             if (hapticEnabled) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             }
-                            onLetterSelected(letter)
-                        }
-                        .padding(vertical = 1.dp)
-                )
+                            handleLetterSelected(letter)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = letter,
+                        fontSize = 10.sp,
+                        color = if (letter == selectedLetter && showPopup) {
+                            Color(0xFF007AFF)
+                        } else {
+                            Color.White.copy(alpha = 0.8f)
+                        },
+                        fontWeight = if (letter == selectedLetter && showPopup) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
 

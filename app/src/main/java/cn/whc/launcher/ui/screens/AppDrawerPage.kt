@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Divider
@@ -52,11 +51,11 @@ fun AppDrawerPage(
     frequentApps: List<AppInfo>,
     allAppsGrouped: Map<String, List<AppInfo>>,
     settings: AppSettings,
+    listState: LazyListState,
     onAppClick: (AppInfo) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
     // 构建列表项
@@ -112,6 +111,7 @@ fun AppDrawerPage(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .padding(start = 20.dp)
             ) {
                 items(
                     items = listItems,
@@ -158,21 +158,37 @@ fun AppDrawerPage(
                 }
             }
 
-            // 字母索引栏
-            AlphabetIndexBar(
-                availableLetters = availableLetters,
-                onLetterSelected = { letter ->
-                    letterPositions[letter]?.let { position ->
-                        coroutineScope.launch {
-                            listState.animateScrollToItem(position)
+            // 字母索引栏（只占下方2/3区域）
+            Box(
+                modifier = Modifier.fillMaxHeight(),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                AlphabetIndexBar(
+                    availableLetters = availableLetters,
+                    onLetterSelected = { letter ->
+                        letterPositions[letter]?.let { position ->
+                            coroutineScope.launch {
+                                // 滚动到对应位置，偏移1/3屏幕高度使其显示在2/3处
+                                val offset = -(listState.layoutInfo.viewportSize.height / 3)
+                                listState.animateScrollToItem(position, offset)
+                            }
                         }
-                    }
-                },
-                hapticEnabled = settings.gesture.hapticFeedback,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .padding(vertical = 32.dp, horizontal = 4.dp)
-            )
+                    },
+                    hapticEnabled = settings.gesture.hapticFeedback,
+                    showFavorites = frequentApps.isNotEmpty(),
+                    onFavoritesClick = {
+                        coroutineScope.launch {
+                            // 滚动到列表顶部（常用区）
+                            listState.animateScrollToItem(0)
+                        }
+                    },
+                    showSettings = true,
+                    onSettingsClick = onSettingsClick,
+                    modifier = Modifier
+                        .fillMaxHeight(0.67f)
+                        .padding(vertical = 32.dp, horizontal = 4.dp)
+                )
+            }
         }
     }
 }
