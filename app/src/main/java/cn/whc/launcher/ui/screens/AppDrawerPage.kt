@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Divider
@@ -30,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,6 +45,10 @@ import cn.whc.launcher.ui.components.AlphabetIndexBar
 import cn.whc.launcher.ui.components.AppListItem
 import cn.whc.launcher.ui.components.DrawableImage
 import cn.whc.launcher.ui.components.LetterHeader
+import cn.whc.launcher.ui.theme.OnSurfaceSecondary
+import cn.whc.launcher.ui.theme.PrimaryBlue
+import cn.whc.launcher.ui.theme.SecondaryPurple
+import cn.whc.launcher.ui.theme.SurfaceLight
 import kotlinx.coroutines.launch
 
 /**
@@ -137,9 +145,20 @@ fun AppDrawerPage(
                             )
                         }
                         is DrawerListItem.Divider -> {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                color = Color.White.copy(alpha = 0.2f)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                                    .height(0.5.dp)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.White.copy(alpha = 0.15f),
+                                                Color.Transparent
+                                            )
+                                        )
+                                    )
                             )
                         }
                         is DrawerListItem.LetterHeader -> {
@@ -194,26 +213,42 @@ fun AppDrawerPage(
 }
 
 /**
- * 常用区标题
+ * 常用区标题 - Material You 风格
  */
 @Composable
 private fun FrequentSectionHeader() {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // 左侧强调色竖条
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(16.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(PrimaryBlue, SecondaryPurple)
+                    ),
+                    shape = RoundedCornerShape(1.5.dp)
+                )
+        )
+
         Text(
             text = "常用",
-            color = Color.White.copy(alpha = 0.7f),
+            color = OnSurfaceSecondary,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp
         )
     }
 }
 
 /**
- * 设置入口项
+ * 设置入口项 - Material You 风格
  */
 @Composable
 private fun SettingsItem(onClick: () -> Unit) {
@@ -221,21 +256,33 @@ private fun SettingsItem(onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.Settings,
-            contentDescription = "设置",
-            tint = Color.White.copy(alpha = 0.7f),
-            modifier = Modifier.size(24.dp)
-        )
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(
+                    color = SurfaceLight,
+                    shape = RoundedCornerShape(10.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "设置",
+                tint = OnSurfaceSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
         Text(
             text = "设置",
-            color = Color.White.copy(alpha = 0.7f),
-            fontSize = 16.sp
+            color = OnSurfaceSecondary,
+            fontSize = 16.sp,
+            letterSpacing = 0.15.sp
         )
     }
 }

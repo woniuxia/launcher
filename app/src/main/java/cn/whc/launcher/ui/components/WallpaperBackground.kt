@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
@@ -168,11 +169,20 @@ fun WallpaperBackground(
             }
         }
 
-        // 暗色遮罩
+        // 渐变暗色遮罩 - 增加视觉层次
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.3f))
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.4f),   // 顶部较暗 - 时钟区域
+                            0.3f to Color.Black.copy(alpha = 0.25f),  // 中上部较轻
+                            0.6f to Color.Black.copy(alpha = 0.2f),   // 中部最轻
+                            1.0f to Color.Black.copy(alpha = 0.35f)   // 底部中等
+                        )
+                    )
+                )
         )
     }
 }

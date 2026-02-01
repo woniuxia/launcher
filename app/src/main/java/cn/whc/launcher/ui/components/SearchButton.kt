@@ -1,13 +1,17 @@
 package cn.whc.launcher.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +31,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -40,15 +43,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.whc.launcher.data.model.AppInfo
+import cn.whc.launcher.ui.theme.BorderLight
+import cn.whc.launcher.ui.theme.OnSurfaceTertiary
+import cn.whc.launcher.ui.theme.PrimaryBlue
+import cn.whc.launcher.ui.theme.PrimaryBlueDark
+import cn.whc.launcher.ui.theme.SecondaryPurple
+import cn.whc.launcher.ui.theme.ShadowColor
+import cn.whc.launcher.ui.theme.SurfaceMedium
 
 /**
- * 悬浮搜索按钮
+ * 悬浮搜索按钮 - Material You 风格
  */
 @Composable
 fun FloatingSearchButton(
@@ -66,41 +77,78 @@ fun FloatingSearchButton(
     }
 
     Box(modifier = modifier) {
-        if (isExpanded) {
-            // 展开状态: 搜索框 + 结果列表
-            SearchOverlay(
-                query = searchQuery,
-                results = searchResults,
-                onQueryChange = onQueryChange,
-                onClose = { onToggle(false) },
-                onAppClick = {
-                    onAppClick(it)
-                    onToggle(false)
+        AnimatedContent(
+            targetState = isExpanded,
+            transitionSpec = {
+                if (targetState) {
+                    // 展开: 淡入 + 放大
+                    (fadeIn(tween(200)) + scaleIn(
+                        initialScale = 0.8f,
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f)
+                    )) togetherWith
+                    (fadeOut(tween(150)) + scaleOut(targetScale = 0.6f))
+                } else {
+                    // 收缩: 淡入 + 缩小回来
+                    (fadeIn(tween(200)) + scaleIn(
+                        initialScale = 1.2f,
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f)
+                    )) togetherWith
+                    (fadeOut(tween(150)) + scaleOut(targetScale = 1.2f))
                 }
-            )
-        } else {
-            // 收缩状态: 圆形搜索按钮
-            FloatingActionButton(
-                onClick = { onToggle(true) },
-                modifier = Modifier
-                    .size(56.dp)
-                    .shadow(8.dp, CircleShape),
-                shape = CircleShape,
-                containerColor = Color(0xFF007AFF)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "搜索",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+            },
+            label = "searchTransition"
+        ) { expanded ->
+            if (expanded) {
+                SearchOverlay(
+                    query = searchQuery,
+                    results = searchResults,
+                    onQueryChange = onQueryChange,
+                    onClose = { onToggle(false) },
+                    onAppClick = {
+                        onAppClick(it)
+                        onToggle(false)
+                    }
                 )
+            } else {
+                // 渐变 FAB
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .shadow(
+                            elevation = 12.dp,
+                            shape = CircleShape,
+                            ambientColor = ShadowColor,
+                            spotColor = PrimaryBlueDark.copy(alpha = 0.4f)
+                        )
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(PrimaryBlue, SecondaryPurple)
+                            )
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = 0.15f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(onClick = { onToggle(true) }) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "搜索",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * 搜索覆盖层
+ * 搜索覆盖层 - Material You 风格
  */
 @Composable
 private fun SearchOverlay(
@@ -119,29 +167,40 @@ private fun SearchOverlay(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.8f))
+            .background(Color.Black.copy(alpha = 0.85f))
             .padding(16.dp)
     ) {
         Spacer(modifier = Modifier.height(48.dp))
 
-        // 搜索框
+        // 搜索框 - 玻璃质感
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
+                .shadow(
+                    elevation = 8.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    ambientColor = ShadowColor,
+                    spotColor = PrimaryBlueDark.copy(alpha = 0.3f)
+                )
                 .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xFF007AFF))
-                .padding(horizontal = 16.dp),
+                .background(SurfaceMedium)
+                .border(
+                    width = 1.dp,
+                    color = if (query.isNotEmpty()) PrimaryBlue.copy(alpha = 0.4f) else BorderLight,
+                    shape = RoundedCornerShape(28.dp)
+                )
+                .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
+                tint = if (query.isNotEmpty()) PrimaryBlue else OnSurfaceTertiary,
+                modifier = Modifier.size(22.dp)
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             BasicTextField(
                 value = query,
@@ -151,17 +210,19 @@ private fun SearchOverlay(
                     .focusRequester(focusRequester),
                 textStyle = TextStyle(
                     color = Color.White,
-                    fontSize = 16.sp
+                    fontSize = 16.sp,
+                    letterSpacing = 0.15.sp
                 ),
-                cursorBrush = SolidColor(Color.White),
+                cursorBrush = SolidColor(PrimaryBlue),
                 singleLine = true,
                 decorationBox = { innerTextField ->
                     Box {
                         if (query.isEmpty()) {
                             Text(
                                 text = "搜索应用...",
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontSize = 16.sp
+                                color = OnSurfaceTertiary,
+                                fontSize = 16.sp,
+                                letterSpacing = 0.15.sp
                             )
                         }
                         innerTextField()
@@ -173,7 +234,8 @@ private fun SearchOverlay(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "关闭",
-                    tint = Color.White
+                    tint = OnSurfaceTertiary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -205,8 +267,9 @@ private fun SearchOverlay(
             ) {
                 Text(
                     text = "未找到匹配的应用",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 14.sp
+                    color = OnSurfaceTertiary,
+                    fontSize = 14.sp,
+                    letterSpacing = 0.25.sp
                 )
             }
         }
