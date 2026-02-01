@@ -1,0 +1,29 @@
+package cn.whc.launcher.data.database
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+import cn.whc.launcher.data.dao.AppDao
+import cn.whc.launcher.data.dao.BlacklistDao
+import cn.whc.launcher.data.dao.DailyStatsDao
+import cn.whc.launcher.data.entity.AppEntity
+import cn.whc.launcher.data.entity.BlacklistEntity
+import cn.whc.launcher.data.entity.DailyStatEntity
+
+@Database(
+    entities = [
+        AppEntity::class,
+        DailyStatEntity::class,
+        BlacklistEntity::class
+    ],
+    version = 1,
+    exportSchema = false
+)
+abstract class LauncherDatabase : RoomDatabase() {
+    abstract fun appDao(): AppDao
+    abstract fun dailyStatsDao(): DailyStatsDao
+    abstract fun blacklistDao(): BlacklistDao
+
+    companion object {
+        const val DATABASE_NAME = "launcher_db"
+    }
+}
