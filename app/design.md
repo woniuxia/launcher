@@ -10,25 +10,38 @@
 
 ### 1.3 核心功能
 - 首页时间日期农历展示
-- 网格布局常用应用快捷启动
-- **上滑进入常用应用页**（排除首页应用，按使用频率排序）
-- **继续上滑进入完整应用列表**（字母索引）
-- **首页右侧字母索引**，点击跳转全部应用列表
+- 网格布局常用应用快捷启动（按使用频率自动排序）
+- **上滑进入应用抽屉**：顶部常用区 + 字母分组列表
+- 字母索引快速定位
+- 悬浮搜索按钮（支持拼音/首字母搜索）
 - 使用频率智能排序（30天统计）
 - 应用黑名单管理
 - 丰富的自定义设置
 
 ### 1.4 页面结构与导航
 ```
-┌─────────┐      上滑       ┌─────────────────┐      继续上滑      ┌─────────────┐
-│  首页   │ ───────────────→│  常用应用页      │ ────────────────→│ 全部应用列表 │
-│  (Home) │                 │ (Frequent Apps) │                  │ (All Apps)   │
-│         │←────────────────│                 │←─────────────────│              │
-│ 右侧字母│    下滑返回      │ 排除首页应用     │    下滑返回       │ 悬浮搜索按钮 │
-│ 索引    │                 │ 30天频率排序     │                  │ 右侧字母索引 │
-└────┬────┘                 └─────────────────┘                  └──────────────┘
-     │                                                                  ↑
-     └──────────────────── 点击字母索引直接跳转 ─────────────────────────┘
+┌─────────────────┐        上滑         ┌───────────────────────────────┐
+│      首页       │ ──────────────────→ │         应用抽屉              │
+│     (Home)      │                     │       (App Drawer)            │
+│                 │ ←────────────────── │                               │
+│  时间日期农历   │      下滑返回        │ ┌─────────────────────────┐   │
+│  应用网格       │                     │ │    常用区（多行列表）    │   │
+│  (频率自动排序) │                     │ │  [图标] 微信            │   │
+│                 │                     │ │  [图标] 支付宝          │   │
+└─────────────────┘                     │ │  [图标] 抖音            │   │
+                                        │ └─────────────────────────┘   │
+                                        │ ─────────────────────────────  │
+                                        │ ┌─────────────────────────┐   │
+                                        │ │ A                   ┌─┐ │   │
+                                        │ │ [图标] 爱奇艺       │A│ │   │
+                                        │ │ B                   │B│ │   │
+                                        │ │ [图标] 百度         │.│ │   │
+                                        │ │ ...                 │#│ │   │
+                                        │ └─────────────────────┴─┘ │   │
+                                        │        ┌────┐             │   │
+                                        │        │ 🔍 │ 悬浮搜索    │   │
+                                        │        └────┘             │   │
+                                        └───────────────────────────────┘
 ```
 
 ### 1.5 目标用户
@@ -46,20 +59,22 @@
 │  状态栏 (系统)                             │
 ├──────────────────────────────────────────┤
 │                                          │
-│  ┌───────────────────────────────┐  ┌───┐│
-│  │      时间日期区域              │  │ A ││
-│  │    10:10                      │  │ B ││
-│  │    周日 01 2月                │  │ C ││
-│  │    农历腊月廿三                │  │ D ││
-│  └───────────────────────────────┘  │ E ││
-│                                     │ F ││
-│  ┌───────────────────────────────┐  │...││
-│  │    常用应用网格区域            │  │ Z ││
-│  │    (可自定义行列数)            │  │ # ││
-│  │  [图标] [图标] [图标] [图标]   │  └───┘│
-│  │  [图标] [图标] [图标] [图标]   │       │
-│  │  [图标] [图标] [图标] [图标]   │       │
-│  └───────────────────────────────┘       │
+│  ┌────────────────────────────────────┐  │
+│  │      时间日期区域                   │  │
+│  │    10:10                           │  │
+│  │    周日 01 2月                      │  │
+│  │    农历腊月廿三                     │  │
+│  └────────────────────────────────────┘  │
+│                                          │
+│  ┌────────────────────────────────────┐  │
+│  │    常用应用网格区域                  │  │
+│  │    (按使用频率自动排序)              │  │
+│  │  [图标] [图标] [图标] [图标]        │  │
+│  │  [图标] [图标] [图标] [图标]        │  │
+│  │  [图标] [图标] [图标] [图标]        │  │
+│  └────────────────────────────────────┘  │
+│                                          │
+│           ↑ 上滑打开应用抽屉              │
 └──────────────────────────────────────────┘
 ```
 
@@ -80,7 +95,57 @@
 | 文字大小 | 12px | 10-14px |
 | 垂直偏移 | 0px | -200~200px |
 
+**排序规则**: 按30天使用频率自动排序，无需手动调整
 **图标样式**: 圆角 16px, 阴影 0 2px 8px rgba(0,0,0,0.15), 点击缩放 0.95
+
+### 2.2 应用抽屉 (App Drawer)
+```
+┌─────────────────────────────────────────┐
+│  状态栏 (系统)                            │
+├─────────────────────────────────────────┤
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │ 常用                            │    │
+│  │ [图标] 微信                     │    │
+│  │ [图标] 支付宝                   │    │
+│  │ [图标] 抖音                     │    │
+│  │ [图标] 淘宝                     │    │
+│  │ [图标] 哔哩哔哩                 │    │
+│  └─────────────────────────────────┘    │
+│  ─────────────────────────────────────  │
+│  A                                 ┌─┐  │
+│  [图标] 爱奇艺                     │A│  │
+│  [图标] 安全中心                   │B│  │
+│  B                                 │C│  │
+│  [图标] 百度地图                   │D│  │
+│  [图标] 哔哩哔哩                   │.│  │
+│  ...                               │.│  │
+│  #                                 │#│  │
+│  [图标] 12306                      └─┘  │
+│                                         │
+│  ⚙️ 设置                                │
+│                      ┌─────┐            │
+│                      │  🔍 │ 悬浮搜索   │
+│                      └─────┘            │
+└─────────────────────────────────────────┘
+```
+
+#### 常用区
+| 属性 | 说明 |
+|------|------|
+| 布局 | 垂直列表，每行一个应用（图标+名称） |
+| 排序方式 | 按30天使用频率倒序 |
+| 排除项 | 首页已展示的应用 |
+| 显示数量 | 可自定义 (默认 5，范围 3-15) |
+| 列表项 | 图标 48dp + 名称 16px，高度 56dp |
+| 分隔线 | 常用区底部显示分隔线 |
+
+#### 全部应用列表
+| 属性 | 说明 |
+|------|------|
+| 布局 | 字母分组，每组内按频率排序 |
+| 列表项 | 图标 48dp + 名称 16px，高度 64dp |
+| 字母分组头 | 16dp 高度，灰色背景 |
 
 #### 右侧字母索引栏
 | 属性 | 值 |
@@ -88,51 +153,8 @@
 | 宽度 | 28px |
 | 字符 | A-Z, # |
 | 字体大小 | 10px |
-| 点击行为 | 跳转到全部应用列表对应字母位置 |
-| 反馈 | 震动 + 字母放大提示 |
-
-### 2.2 常用应用页 (Frequent Apps)
-```
-┌─────────────────────────────────────┐
-│  状态栏 (系统)                        │
-├─────────────────────────────────────┤
-│          常用应用                    │
-├─────────────────────────────────────┤
-│  [图标] 微信                         │
-│  [图标] 抖音                         │
-│  [图标] 支付宝                       │
-│  [图标] ...                         │
-│                                     │
-│     ↑ 继续上滑查看全部应用           │
-└─────────────────────────────────────┘
-```
-
-| 属性 | 说明 |
-|------|------|
-| 排序方式 | 按30天使用频率倒序 |
-| 排除项 | 首页已展示的应用 |
-| 显示数量 | 可自定义 (默认 20) |
-| 列表项 | 图标 48dp + 名称 16px，高度 64dp |
-
-### 2.3 完整应用列表页 (All Apps)
-```
-┌─────────────────────────────────────┐
-│  状态栏 (系统)                        │
-├─────────────────────────────────────┤
-│          全部应用                    │
-├─────────────────────────────────────┤
-│  A                              ┌───┐│
-│  [图标] 爱奇艺                   │ A ││
-│  [图标] 安全中心                 │ B ││
-│  B                              │ C ││
-│  [图标] 百度地图                 │...││
-│  ...                            │ # ││
-│  ⚙️ 设置                        └───┘│
-│                    ┌─────────┐      │
-│                    │   🔍    │      │ ← 悬浮搜索按钮
-│                    └─────────┘      │
-└─────────────────────────────────────┘
-```
+| 点击/滑动 | 滚动到对应字母分组 |
+| 反馈 | 震动 + 字母放大提示弹窗 |
 
 #### 悬浮搜索按钮
 | 属性 | 值 |
@@ -148,71 +170,177 @@
 ## 3. 功能模块设计
 
 ### 3.1 应用数据结构
+
+**设计原则**: 数据库实体 (Entity) 与 UI 模型 (AppInfo) 分离，图标不持久化。
+
 ```kotlin
-data class AppInfo(
-    // 基本信息
-    val packageName: String,          // 包名 (唯一标识)
-    val appName: String,              // 应用名称
-    val appIcon: String,              // 图标路径/Base64
-
-    // 使用统计 (从数据库计算)
-    val launchCount30d: Int,          // 近30天启动次数
-    val lastLaunchTime: Long,         // 最后启动时间戳
-
-    // 分类信息
-    val category: AppCategory,        // 应用分类
-    val firstLetter: String,          // 首字母 (A-Z, #)
-
-    // 状态
-    val isSystemApp: Boolean,         // 是否系统应用
-    val isEnabled: Boolean,           // 是否启用
-    val isHidden: Boolean,            // 是否在列表中隐藏
-
-    // 自定义
-    val customIcon: String? = null,   // 自定义图标
-    val customName: String? = null,   // 自定义名称
-    val homePosition: Int = -1        // 首页位置 (-1 表示不在首页)
+/**
+ * 数据库实体 - 仅存储需要持久化的字段
+ * 注意: 图标从 PackageManager 实时加载，不存储在数据库
+ */
+@Entity(tableName = "apps")
+data class AppEntity(
+    @PrimaryKey val packageName: String,
+    val appName: String,
+    val lastLaunchTime: Long = 0,
+    val firstLetter: String = "#",
+    val isSystemApp: Boolean = false,
+    val isHidden: Boolean = false,
+    val customName: String? = null,
+    val customIconUri: String? = null,  // 仅自定义图标存 URI
+    val homePosition: Int = -1,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
-enum class AppCategory {
-    SOCIAL, ENTERTAINMENT, PRODUCTIVITY, SYSTEM,
-    TOOL, GAME, FINANCE, SHOPPING, OTHER
+/**
+ * UI 模型 - 包含运行时计算的字段
+ */
+data class AppInfo(
+    val packageName: String,
+    val displayName: String,           // customName ?: appName
+    val icon: ImageBitmap,             // 运行时从 PackageManager 加载
+    val launchCount30d: Int,           // 计算值，来自 daily_stats
+    val score: Float,                  // 综合评分，用于排序
+    val firstLetter: String,
+    val isSystemApp: Boolean,
+    val isHidden: Boolean,
+    val homePosition: Int
+)
+
+/**
+ * 应用分类 - 使用系统分类 API
+ */
+object AppCategoryResolver {
+    fun getCategory(pm: PackageManager, packageName: String): Int {
+        return try {
+            pm.getApplicationInfo(packageName, 0).category
+        } catch (e: Exception) {
+            ApplicationInfo.CATEGORY_UNDEFINED
+        }
+    }
+
+    fun getCategoryLabel(category: Int): String = when (category) {
+        ApplicationInfo.CATEGORY_GAME -> "游戏"
+        ApplicationInfo.CATEGORY_AUDIO -> "音频"
+        ApplicationInfo.CATEGORY_VIDEO -> "视频"
+        ApplicationInfo.CATEGORY_IMAGE -> "图像"
+        ApplicationInfo.CATEGORY_SOCIAL -> "社交"
+        ApplicationInfo.CATEGORY_NEWS -> "新闻"
+        ApplicationInfo.CATEGORY_MAPS -> "地图"
+        ApplicationInfo.CATEGORY_PRODUCTIVITY -> "效率"
+        else -> "其他"
+    }
 }
 ```
 
 ### 3.2 30天使用频率排序算法
+
+**设计原则**: 批量计算避免 N*2 次数据库查询，评分结果缓存。
+
 ```kotlin
 /**
- * 计算应用的30天综合评分
+ * 频率评分计算器
  *
  * 评分公式: 总次数权重(50%) + 时间衰减权重(30%) + 近期活跃权重(20%)
  * - 总次数权重: 近30天启动总次数
- * - 时间衰减权重: 最近使用的应用得分更高，7天半衰期
+ * - 时间衰减权重: 7天半衰期指数衰减 (正确公式: 0.5^(days/7))
  * - 近期活跃权重: 近7天启动次数，反映近期使用趋势
  */
-fun calculate30DayScore(app: AppInfo, statsDao: DailyStatsDao): Float {
-    val daysSinceLastLaunch = (System.currentTimeMillis() - app.lastLaunchTime) / DAY_MS
+class FrequencyScoreCalculator(
+    private val statsDao: DailyStatsDao,
+    private val appDao: AppDao
+) {
+    companion object {
+        private const val HALF_LIFE_DAYS = 7.0
+        private const val WEIGHT_COUNT_30D = 0.5f
+        private const val WEIGHT_TIME_DECAY = 0.3f
+        private const val WEIGHT_COUNT_7D = 0.2f
+    }
 
-    // 近30天启动次数
-    val count30d = statsDao.getRecentDaysCount(app.packageName, 30)
+    /**
+     * 批量计算所有应用评分 (单次查询，避免 N 个 app 触发 2N 次查询)
+     */
+    suspend fun calculateAllScores(): Map<String, Float> {
+        val now = System.currentTimeMillis()
+        val stats30d = statsDao.getAllRecentStats(30)  // 一次查询
+        val stats7d = statsDao.getAllRecentStats(7)    // 一次查询
+        val lastLaunchTimes = appDao.getAllLastLaunchTimes()
 
-    // 时间衰减因子: e^(-days/7)，7天半衰期
-    val timeDecayScore = exp(-daysSinceLastLaunch / 7.0).toFloat() * 100
+        return stats30d.keys.associateWith { pkg ->
+            calculateScore(
+                count30d = stats30d[pkg] ?: 0,
+                count7d = stats7d[pkg] ?: 0,
+                lastLaunchTime = lastLaunchTimes[pkg] ?: 0L,
+                now = now
+            )
+        }
+    }
 
-    // 近7天启动次数
-    val count7d = statsDao.getRecentDaysCount(app.packageName, 7)
+    private fun calculateScore(
+        count30d: Int,
+        count7d: Int,
+        lastLaunchTime: Long,
+        now: Long
+    ): Float {
+        val daysSinceLastLaunch = (now - lastLaunchTime) / 86_400_000.0
 
-    // 综合评分
-    return count30d * 0.5f + timeDecayScore * 0.3f + count7d * 0.2f
+        // 正确的7天半衰期衰减公式: 0.5^(days/7)
+        // 注意: exp(-days/7) 的半衰期约为 4.85 天，不是 7 天
+        val timeDecayScore = (0.5.pow(daysSinceLastLaunch / HALF_LIFE_DAYS) * 100).toFloat()
+
+        return count30d * WEIGHT_COUNT_30D +
+               timeDecayScore * WEIGHT_TIME_DECAY +
+               count7d * WEIGHT_COUNT_7D
+    }
+}
+
+// DAO 批量查询接口
+@Dao
+interface DailyStatsDao {
+    @Query("""
+        SELECT package_name, SUM(launch_count) as total
+        FROM daily_stats
+        WHERE date >= date('now', '-' || :days || ' days')
+        GROUP BY package_name
+    """)
+    suspend fun getAllRecentStats(days: Int): Map<String, Int>
 }
 
 /**
- * 获取常用应用页数据（排除首页应用）
+ * 评分缓存 (5分钟过期)
  */
-suspend fun getFrequentApps(
+class ScoreCache(
+    private val calculator: FrequencyScoreCalculator,
+    private val expirationMs: Long = 5 * 60 * 1000
+) {
+    private var cachedScores: Map<String, Float> = emptyMap()
+    private var lastUpdateTime: Long = 0
+
+    suspend fun getScores(): Map<String, Float> {
+        val now = System.currentTimeMillis()
+        if (now - lastUpdateTime > expirationMs || cachedScores.isEmpty()) {
+            cachedScores = calculator.calculateAllScores()
+            lastUpdateTime = now
+        }
+        return cachedScores
+    }
+
+    fun invalidate() {
+        lastUpdateTime = 0
+    }
+}
+
+/**
+ * 获取应用抽屉常用区数据（排除首页应用）
+ */
+suspend fun getDrawerFrequentApps(
+    scoreCache: ScoreCache,
+    appDao: AppDao,
     excludeHomeApps: Boolean = true,
-    limit: Int = 20
+    limit: Int = 5
 ): List<AppInfo> {
+    val scores = scoreCache.getScores()
     var apps = appDao.getAllApps().filter { !it.isHidden }
 
     if (excludeHomeApps) {
@@ -221,7 +349,7 @@ suspend fun getFrequentApps(
     }
 
     return apps
-        .sortedByDescending { calculate30DayScore(it, statsDao) }
+        .sortedByDescending { scores[it.packageName] ?: 0f }
         .take(limit)
 }
 ```
@@ -231,7 +359,7 @@ suspend fun getFrequentApps(
 /**
  * 记录应用启动并更新统计数据
  */
-suspend fun recordAppLaunch(packageName: String) {
+suspend fun recordAppLaunch(packageName: String, scoreCache: ScoreCache) {
     val today = LocalDate.now().toString()
 
     // 更新或插入今日统计
@@ -242,9 +370,38 @@ suspend fun recordAppLaunch(packageName: String) {
     // 更新应用最后启动时间
     appDao.updateLastLaunchTime(packageName, System.currentTimeMillis())
 
-    // 清理30天前的过期数据
-    val cutoffDate = LocalDate.now().minusDays(30).toString()
-    statsDao.deleteOldStats(cutoffDate)
+    // 使评分缓存失效，下次访问时重新计算
+    scoreCache.invalidate()
+}
+
+/**
+ * 数据清理 - 使用 WorkManager 定期执行
+ */
+class DataCleanupWorker(
+    context: Context,
+    params: WorkerParameters
+) : CoroutineWorker(context, params) {
+
+    @Inject lateinit var statsDao: DailyStatsDao
+
+    override suspend fun doWork(): Result {
+        val cutoffDate = LocalDate.now().minusDays(30).toString()
+        statsDao.deleteOldStats(cutoffDate)
+        return Result.success()
+    }
+}
+
+// Application 中注册定期任务
+fun scheduleDataCleanup(context: Context) {
+    val request = PeriodicWorkRequestBuilder<DataCleanupWorker>(
+        1, TimeUnit.DAYS
+    ).build()
+
+    WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        "data_cleanup",
+        ExistingPeriodicWorkPolicy.KEEP,
+        request
+    )
 }
 ```
 
@@ -265,24 +422,60 @@ class BlacklistManager(private val appDao: AppDao) {
 ```
 
 ### 3.5 搜索模块
+
+**搜索匹配**: 支持名称、拼音全拼、拼音首字母、包名匹配，结果按综合评分排序。
+
 ```kotlin
 /**
- * 搜索应用（支持名称、拼音、包名）
- * 结果按30天使用频率排序
+ * 拼音工具类 - 使用 TinyPinyin 库
  */
-fun searchApps(query: String, allApps: List<AppInfo>): List<AppInfo> {
+object PinyinHelper {
+    fun getFirstLetter(text: String): String {
+        if (text.isEmpty()) return "#"
+        val first = text.first()
+        return when {
+            first.isLetter() && first.code < 128 -> first.uppercaseChar().toString()
+            Pinyin.isChinese(first) -> Pinyin.toPinyin(first).first().uppercaseChar().toString()
+            else -> "#"
+        }
+    }
+
+    fun toPinyin(text: String): String {
+        return text.map { char ->
+            if (Pinyin.isChinese(char)) Pinyin.toPinyin(char).lowercase()
+            else char.lowercase().toString()
+        }.joinToString("")
+    }
+
+    fun getInitials(text: String): String {
+        return text.map { getFirstLetter(it.toString()) }.joinToString("").lowercase()
+    }
+}
+
+/**
+ * 搜索应用
+ * 匹配优先级: 名称 > 拼音全拼 > 拼音首字母 > 包名
+ * 结果按综合评分排序 (非 launchCount30d)
+ */
+fun searchApps(
+    query: String,
+    allApps: List<AppInfo>,
+    scores: Map<String, Float>
+): List<AppInfo> {
     val lowerQuery = query.lowercase()
 
     return allApps
         .filter { app ->
-            val name = (app.customName ?: app.appName).lowercase()
-            val pinyin = getPinyin(name)
+            val name = app.displayName.lowercase()
+            val pinyin = PinyinHelper.toPinyin(app.displayName)
+            val initials = PinyinHelper.getInitials(app.displayName)
 
             name.contains(lowerQuery) ||
             pinyin.contains(lowerQuery) ||
+            initials.contains(lowerQuery) ||
             app.packageName.lowercase().contains(lowerQuery)
         }
-        .sortedByDescending { it.launchCount30d }
+        .sortedByDescending { scores[it.packageName] ?: 0f }
 }
 ```
 
@@ -324,7 +517,7 @@ class AlphabetIndex(private val appDao: AppDao) {
 | 图标间距 | 滑块 | 16px | 8-32px |
 | 垂直偏移 | 滑块 | 0px | -200~200px |
 | 首页显示数量 | 滑块 | 16 | 6-36 |
-| 常用页显示数量 | 滑块 | 20 | 10-50 |
+| 抽屉常用区数量 | 滑块 | 5 | 3-15 |
 
 #### 外观设置
 | 设置项 | 类型 | 默认值 |
@@ -382,7 +575,7 @@ data class LayoutSettings(
     val iconSpacing: Int = 16,
     val verticalOffset: Int = 0,
     val homeDisplayCount: Int = 16,
-    val frequentDisplayCount: Int = 20
+    val drawerFrequentCount: Int = 5
 )
 
 data class AppearanceSettings(
@@ -408,23 +601,53 @@ enum class BackgroundType { SOLID, BLUR, IMAGE }
 | 数据类型 | 存储方式 |
 |----------|----------|
 | 应用信息 | SQLite (Room) |
-| 设置项 | SharedPreferences |
-| 图标/背景缓存 | 文件系统 |
+| 设置项 | DataStore Preferences |
+| 图标缓存 | 内存 LRU + Coil 磁盘缓存 |
+
+**注意**: 使用 DataStore 替代 SharedPreferences，避免同步 IO 阻塞主线程。
+
+```kotlin
+// 依赖
+implementation("androidx.datastore:datastore-preferences:1.1.0")
+
+// 设置存储
+val Context.settingsDataStore by preferencesDataStore(name = "settings")
+
+class SettingsRepository(private val dataStore: DataStore<Preferences>) {
+
+    val layoutSettings: Flow<LayoutSettings> = dataStore.data.map { prefs ->
+        LayoutSettings(
+            columns = prefs[COLUMNS_KEY] ?: 4,
+            rows = prefs[ROWS_KEY] ?: 4,
+            iconSize = prefs[ICON_SIZE_KEY] ?: 56,
+            iconSpacing = prefs[ICON_SPACING_KEY] ?: 16
+        )
+    }
+
+    suspend fun updateColumns(columns: Int) {
+        dataStore.edit { it[COLUMNS_KEY] = columns }
+    }
+
+    companion object {
+        val COLUMNS_KEY = intPreferencesKey("columns")
+        val ROWS_KEY = intPreferencesKey("rows")
+        val ICON_SIZE_KEY = intPreferencesKey("icon_size")
+        val ICON_SPACING_KEY = intPreferencesKey("icon_spacing")
+    }
+}
+```
 
 ### 5.2 数据库设计
 ```sql
--- 应用信息表
+-- 应用信息表 (注意: 不存储 app_icon)
 CREATE TABLE apps (
     package_name TEXT PRIMARY KEY,
     app_name TEXT NOT NULL,
-    app_icon TEXT,
     last_launch_time INTEGER DEFAULT 0,
-    category TEXT DEFAULT 'OTHER',
     first_letter TEXT DEFAULT '#',
     is_system_app INTEGER DEFAULT 0,
-    is_enabled INTEGER DEFAULT 1,
     is_hidden INTEGER DEFAULT 0,
-    custom_icon TEXT,
+    custom_icon_uri TEXT,             -- 仅自定义图标存 URI
     custom_name TEXT,
     home_position INTEGER DEFAULT -1,
     created_at INTEGER DEFAULT 0,
@@ -458,58 +681,367 @@ CREATE INDEX idx_daily_stats_package ON daily_stats(package_name);
 ```
 
 ### 5.3 数据清理策略
+
+使用 WorkManager 定期清理过期数据，避免在应用启动时执行耗时操作。
+
 ```kotlin
-/**
- * 定期清理过期数据
- * 建议在应用启动时或每日首次使用时执行
- */
-suspend fun cleanupExpiredData() {
-    val cutoffDate = LocalDate.now().minusDays(30).toString()
-    statsDao.deleteOldStats(cutoffDate)
+// 见 3.3 节 DataCleanupWorker 实现
+// 推荐: 每日执行一次，清理30天前的统计数据
+```
+
+---
+
+## 6. 系统集成
+
+### 6.1 Launcher Activity 配置
+
+**AndroidManifest.xml**:
+```xml
+<activity
+    android:name=".MainActivity"
+    android:launchMode="singleTask"
+    android:stateNotNeeded="true"
+    android:resumeWhilePausing="true"
+    android:taskAffinity=""
+    android:windowSoftInputMode="adjustPan"
+    android:screenOrientation="nosensor"
+    android:excludeFromRecents="true"
+    android:exported="true">
+
+    <!-- 作为桌面启动器 -->
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.HOME" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+
+    <!-- 壁纸设置入口 -->
+    <intent-filter>
+        <action android:name="android.intent.action.SET_WALLPAPER" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+</activity>
+```
+
+**关键属性说明**:
+| 属性 | 作用 |
+|------|------|
+| `launchMode="singleTask"` | 避免 Activity 重复创建 |
+| `stateNotNeeded="true"` | 不保存实例状态，减少内存占用 |
+| `excludeFromRecents="true"` | 不出现在最近任务列表 |
+| `taskAffinity=""` | 独立任务栈 |
+
+### 6.2 应用安装/卸载监听
+
+```kotlin
+class AppChangeReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val packageName = intent.data?.schemeSpecificPart ?: return
+
+        when (intent.action) {
+            Intent.ACTION_PACKAGE_ADDED -> {
+                if (!intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) {
+                    // 新应用安装 - 刷新应用列表
+                    AppRepository.instance.onAppInstalled(packageName)
+                }
+            }
+            Intent.ACTION_PACKAGE_REMOVED -> {
+                if (!intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) {
+                    // 应用卸载 - 从列表和首页移除
+                    AppRepository.instance.onAppUninstalled(packageName)
+                }
+            }
+            Intent.ACTION_PACKAGE_CHANGED,
+            Intent.ACTION_PACKAGE_REPLACED -> {
+                // 应用更新 - 刷新图标和名称
+                AppRepository.instance.onAppUpdated(packageName)
+            }
+        }
+    }
+}
+
+// AndroidManifest.xml 注册
+<receiver android:name=".AppChangeReceiver" android:exported="false">
+    <intent-filter>
+        <action android:name="android.intent.action.PACKAGE_ADDED" />
+        <action android:name="android.intent.action.PACKAGE_REMOVED" />
+        <action android:name="android.intent.action.PACKAGE_CHANGED" />
+        <action android:name="android.intent.action.PACKAGE_REPLACED" />
+        <data android:scheme="package" />
+    </intent-filter>
+</receiver>
+```
+
+### 6.3 壁纸模糊处理
+
+```kotlin
+@Composable
+fun WallpaperBackground(blurRadius: Int = 20) {
+    val context = LocalContext.current
+    val wallpaperManager = remember { WallpaperManager.getInstance(context) }
+
+    var wallpaperBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val drawable = wallpaperManager.drawable
+            val bitmap = (drawable as? BitmapDrawable)?.bitmap
+            wallpaperBitmap = bitmap?.asImageBitmap()
+        }
+    }
+
+    wallpaperBitmap?.let { bitmap ->
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    // Android 12+ 使用 RenderEffect 模糊
+                    renderEffect = RenderEffect
+                        .createBlurEffect(
+                            blurRadius.toFloat(),
+                            blurRadius.toFloat(),
+                            Shader.TileMode.CLAMP
+                        )
+                        .asComposeRenderEffect()
+                },
+            contentScale = ContentScale.Crop
+        )
+    }
+}
+```
+
+### 6.4 返回键处理
+
+```kotlin
+@Composable
+fun LauncherContent(pagerState: PagerState) {
+    val coroutineScope = rememberCoroutineScope()
+    var isSearchActive by remember { mutableStateOf(false) }
+
+    // Launcher 不应响应返回键退出
+    BackHandler(enabled = true) {
+        when {
+            // 1. 如果在搜索模式，关闭搜索
+            isSearchActive -> isSearchActive = false
+            // 2. 如果在应用抽屉，返回首页
+            pagerState.currentPage == 1 -> {
+                coroutineScope.launch {
+                    pagerState.animateScrollToPage(0)
+                }
+            }
+            // 3. 如果在首页，什么都不做 (不退出)
+            else -> { /* 忽略 */ }
+        }
+    }
+}
+```
+
+### 6.5 图标加载 (AdaptiveIcon 兼容)
+
+```kotlin
+object IconLoader {
+    fun loadAppIcon(
+        context: Context,
+        packageName: String,
+        iconSize: Int = 48
+    ): ImageBitmap? {
+        val pm = context.packageManager
+        return try {
+            val drawable = pm.getApplicationIcon(packageName)
+            drawableToBitmap(drawable, iconSize)
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+    }
+
+    private fun drawableToBitmap(drawable: Drawable, size: Int): ImageBitmap {
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        // 统一处理普通图标和 AdaptiveIconDrawable
+        drawable.setBounds(0, 0, size, size)
+        drawable.draw(canvas)
+
+        return bitmap.asImageBitmap()
+    }
 }
 ```
 
 ---
 
-## 6. 交互设计
+## 7. 交互设计
 
-### 6.1 手势操作
+### 7.1 页面切换 (VerticalPager)
+
+**使用 Compose Foundation VerticalPager 实现两页导航**:
+
+```kotlin
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun LauncherPager(viewModel: LauncherViewModel) {
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { 2 }  // 首页 + 应用抽屉
+    )
+
+    VerticalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize(),
+        beyondViewportPageCount = 1  // 预加载应用抽屉
+    ) { page ->
+        when (page) {
+            0 -> HomePage(viewModel)
+            1 -> AppDrawerPage(viewModel)
+        }
+    }
+}
+```
+
+### 7.2 手势操作
 | 手势 | 功能 | 触发区域 |
 |------|------|----------|
-| 上滑 | 打开常用应用页 | 首页任意区域 |
-| 继续上滑 | 打开全部应用列表 | 常用应用页 |
-| 下滑 | 返回上一页/首页 | 常用应用页/全部应用列表 |
-| 长按图标 | 编辑模式 | 应用图标 |
-| 双击空白 | 锁定/解锁布局 | 首页空白处 |
+| 上滑 | 打开应用抽屉 | 首页任意区域 |
+| 下滑 | 返回首页 | 应用抽屉 |
+| 点击应用图标 | 启动应用 | 任意页面 |
+| 滑动字母索引 | 滚动到对应分组 | 应用抽屉右侧 |
 
-### 6.2 页面切换动画
+### 7.3 字母索引栏 (滑动选择)
+
+```kotlin
+@Composable
+fun AlphabetIndexBar(
+    letters: List<String> = ('A'..'Z').map { it.toString() } + "#",
+    onLetterSelected: (String) -> Unit
+) {
+    var selectedLetter by remember { mutableStateOf<String?>(null) }
+    var showPopup by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    Column(
+        modifier = Modifier
+            .width(28.dp)
+            .fillMaxHeight()
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { offset ->
+                        showPopup = true
+                        val index = (offset.y / (size.height / letters.size)).toInt()
+                            .coerceIn(0, letters.lastIndex)
+                        selectedLetter = letters[index]
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    onDrag = { change, _ ->
+                        val index = (change.position.y / (size.height / letters.size)).toInt()
+                            .coerceIn(0, letters.lastIndex)
+                        if (letters[index] != selectedLetter) {
+                            selectedLetter = letters[index]
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                    },
+                    onDragEnd = {
+                        showPopup = false
+                        selectedLetter?.let { onLetterSelected(it) }
+                    }
+                )
+            },
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        letters.forEach { letter ->
+            Text(
+                text = letter,
+                fontSize = 10.sp,
+                color = if (letter == selectedLetter) Color.Blue else Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.clickable { onLetterSelected(letter) }
+            )
+        }
+    }
+
+    // 放大提示弹窗
+    if (showPopup && selectedLetter != null) {
+        LetterPopup(letter = selectedLetter!!)
+    }
+}
+```
+
+### 7.4 搜索按钮展开动画
+
+```kotlin
+@Composable
+fun ExpandableSearchButton() {
+    var isExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val width by animateDpAsState(
+        targetValue = if (isExpanded) 280.dp else 56.dp,
+        animationSpec = spring(dampingRatio = 0.8f)
+    )
+
+    Box(
+        modifier = Modifier
+            .padding(16.dp)
+            .height(56.dp)
+            .width(width)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary)
+            .clickable { if (!isExpanded) isExpanded = true }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = Icons.Default.Search, contentDescription = "搜索", tint = Color.White)
+            AnimatedVisibility(visible = isExpanded) {
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    textStyle = TextStyle(color = Color.White),
+                    singleLine = true
+                )
+            }
+            if (isExpanded) {
+                IconButton(onClick = { isExpanded = false; searchQuery = "" }) {
+                    Icon(Icons.Default.Close, "关闭", tint = Color.White)
+                }
+            }
+        }
+    }
+
+    BackHandler(enabled = isExpanded) { isExpanded = false; searchQuery = "" }
+}
+```
+
+### 7.5 页面切换动画
 | 场景 | 动画 | 时长 |
 |------|------|------|
-| 上滑进入 | 上滑覆盖 | 300ms ease-out |
-| 下滑返回 | 下滑退出 | 250ms ease-in |
-| 点击索引跳转 | 淡入 + 缩放 | 250ms ease-out |
-| 搜索按钮展开 | 圆形扩展 | 300ms ease-out |
+| 上滑进入应用抽屉 | 上滑覆盖 | 300ms ease-out |
+| 下滑返回首页 | 下滑退出 | 250ms ease-in |
+| 字母索引滚动 | 平滑滚动 | 200ms |
+| 搜索按钮展开 | 弹簧动画 | 300ms spring |
 
-### 6.3 震动反馈
+### 7.6 震动反馈
 | 场景 | 时长 |
 |------|------|
-| 点击字母索引 | 10ms |
+| 滑动字母索引 | 10ms |
 | 应用启动 | 5ms |
-| 长按进入编辑 | 30ms |
-| 删除应用 | 50ms |
+| 搜索框展开 | 15ms |
 
 ---
 
-## 7. 技术架构
+## 8. 技术架构
 
 ### 7.1 架构图
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                      表现层 (UI Layer)                    │
-│  ┌─────────────┐  ┌─────────────────┐  ┌─────────────┐  │
-│  │  首页组件   │  │  常用应用页组件  │  │ 全部应用列表│  │
-│  │  +字母索引  │  │                 │  │ +悬浮搜索   │  │
-│  └─────────────┘  └─────────────────┘  └─────────────┘  │
+│  ┌──────────────────┐  ┌───────────────────────────┐    │
+│  │    首页组件       │  │    应用抽屉组件            │    │
+│  │                  │  │  常用区 + 字母分组列表     │    │
+│  │                  │  │  字母索引 + 悬浮搜索       │    │
+│  └──────────────────┘  └───────────────────────────┘    │
 ├─────────────────────────────────────────────────────────┤
 │                      业务逻辑层 (ViewModel)               │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │
@@ -540,9 +1072,9 @@ class LauncherViewModel(
     private val appRepository: AppRepository,
     private val settingsManager: SettingsManager
 ) : ViewModel() {
-    val homeApps: StateFlow<List<AppInfo>>
-    val frequentApps: StateFlow<List<AppInfo>>
-    val allApps: StateFlow<Map<String, List<AppInfo>>>
+    val homeApps: StateFlow<List<AppInfo>>           // 首页网格应用
+    val drawerFrequentApps: StateFlow<List<AppInfo>> // 抽屉常用区
+    val allApps: StateFlow<Map<String, List<AppInfo>>> // 字母分组列表
     val settings: StateFlow<AppSettings>
 
     fun launchApp(packageName: String)
@@ -556,7 +1088,7 @@ class AppRepository(
     private val statsDao: DailyStatsDao
 ) {
     suspend fun loadHomeApps(): List<AppInfo>
-    suspend fun loadFrequentApps(excludeHome: Boolean, limit: Int): List<AppInfo>
+    suspend fun loadDrawerFrequentApps(excludeHome: Boolean, limit: Int): List<AppInfo>
     suspend fun loadAllAppsGrouped(): Map<String, List<AppInfo>>
     suspend fun recordLaunch(packageName: String)
 }
@@ -576,7 +1108,7 @@ class AppRepository(
 
 ---
 
-## 8. 权限需求
+## 9. 权限需求
 
 | 权限 | 用途 | 必要性 |
 |------|------|--------|
@@ -585,17 +1117,166 @@ class AppRepository(
 | `READ_EXTERNAL_STORAGE` | 读取自定义背景 | 可选 |
 | `RECEIVE_BOOT_COMPLETED` | 开机自启 | 可选 |
 
+### 9.1 权限请求流程
+
+```kotlin
+@Composable
+fun PermissionHandler(onGranted: () -> Unit) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        if (results.values.all { it }) {
+            onGranted()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val requiredPermissions = listOf(
+            Manifest.permission.QUERY_ALL_PACKAGES
+        )
+        val missingPermissions = requiredPermissions.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missingPermissions.isNotEmpty()) {
+            launcher.launch(missingPermissions.toTypedArray())
+        } else {
+            onGranted()
+        }
+    }
+}
+```
+
+### 9.2 备份恢复方案
+
+```kotlin
+@Serializable
+data class BackupData(
+    val version: Int = 1,
+    val timestamp: Long,
+    val homeApps: List<String>,           // 首页应用包名列表
+    val blacklist: List<String>,          // 黑名单包名列表
+    val settings: Map<String, String>,    // 设置项
+    val customNames: Map<String, String>  // 自定义名称
+)
+
+class BackupManager(
+    private val appDao: AppDao,
+    private val settingsRepository: SettingsRepository
+) {
+    suspend fun exportBackup(): String {
+        val data = BackupData(
+            timestamp = System.currentTimeMillis(),
+            homeApps = appDao.getHomeAppPackages(),
+            blacklist = appDao.getBlacklistPackages(),
+            settings = settingsRepository.exportAll(),
+            customNames = appDao.getAllCustomNames()
+        )
+        return Json.encodeToString(data)
+    }
+
+    suspend fun importBackup(json: String): Result<Unit> = runCatching {
+        val data = Json.decodeFromString<BackupData>(json)
+        appDao.restoreHomeApps(data.homeApps)
+        appDao.restoreBlacklist(data.blacklist)
+        appDao.restoreCustomNames(data.customNames)
+        settingsRepository.importAll(data.settings)
+    }
+}
+```
+
 ---
 
-## 9. 性能优化
+## 10. 性能优化
+
+### 10.1 图标内存缓存
+
+```kotlin
+object IconCache {
+    private val lruCache = object : LruCache<String, ImageBitmap>(
+        maxSize = 100  // 最多缓存 100 个图标
+    ) {
+        override fun sizeOf(key: String, value: ImageBitmap): Int = 1
+    }
+
+    fun get(packageName: String): ImageBitmap? = lruCache.get(packageName)
+    fun put(packageName: String, icon: ImageBitmap) { lruCache.put(packageName, icon) }
+    fun remove(packageName: String) { lruCache.remove(packageName) }
+    fun clear() { lruCache.evictAll() }
+}
+
+// 使用 Coil 配置图标加载
+val imageLoader = ImageLoader.Builder(context)
+    .memoryCache {
+        MemoryCache.Builder(context)
+            .maxSizePercent(0.25)  // 25% 可用内存
+            .build()
+    }
+    .diskCache {
+        DiskCache.Builder()
+            .directory(context.cacheDir.resolve("icon_cache"))
+            .maxSizeBytes(50 * 1024 * 1024)  // 50MB
+            .build()
+    }
+    .build()
+```
+
+### 10.2 LazyColumn/Grid 优化
+
+```kotlin
+@Composable
+fun OptimizedAppList(apps: List<AppInfo>) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 8.dp)
+    ) {
+        items(
+            items = apps,
+            key = { it.packageName },      // 稳定 key
+            contentType = { "app_item" }   // 类型提示
+        ) { app ->
+            AppListItem(
+                app = app,
+                modifier = Modifier.fillMaxWidth().height(64.dp)
+            )
+        }
+    }
+}
+```
+
+### 10.3 数据加载优化
+
+```kotlin
+class LauncherViewModel(private val appRepository: AppRepository) : ViewModel() {
+
+    // 使用 StateFlow + stateIn 缓存
+    val homeApps: StateFlow<List<AppInfo>> = appRepository
+        .observeHomeApps()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val frequentApps: StateFlow<List<AppInfo>> = appRepository
+        .observeFrequentApps()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+}
+```
+
+### 10.4 优化清单
 
 - **加载优化**: 应用列表异步加载、图标懒加载 + LRU 缓存、数据库索引优化
 - **内存优化**: 及时释放资源、避免内存泄漏、页面退出时清理
-- **响应优化**: 异步启动应用、DiffUtil 更新列表、频率排序缓存
+- **响应优化**: 异步启动应用、DiffUtil 更新列表、频率排序缓存 (见 3.2 节)
 
 ---
 
-## 10. 国际化
+## 11. 国际化
 
 支持语言: 简体中文 (默认) | 繁体中文 | English
 
@@ -608,16 +1289,15 @@ res/
 
 ---
 
-## 11. 版本规划
+## 12. 版本规划
 
 ### V1.0 (MVP)
 - [x] 首页时间日期农历显示
-- [x] 网格布局应用展示
-- [x] 首页右侧字母索引
-- [x] 常用应用页（排除首页，30天频率）
-- [x] 上滑导航流程
-- [x] 全部应用列表悬浮搜索按钮
+- [x] 网格布局应用展示（使用频率自动排序）
+- [x] 应用抽屉（常用区 + 字母分组列表）
+- [x] 上滑打开应用抽屉
 - [x] 字母索引快速定位
+- [x] 悬浮搜索按钮（支持拼音/首字母）
 - [x] 黑名单功能
 - [x] 基础设置
 
@@ -633,7 +1313,7 @@ res/
 
 ---
 
-## 12. 附录
+## 13. 附录
 
 ### 颜色规范
 | 模式 | 主背景 | 卡片背景 | 主文字 | 次要文字 | 强调色 |
@@ -649,6 +1329,11 @@ res/
 
 ---
 
-**文档版本**: 2.0
+**文档版本**: 4.0
 **更新日期**: 2026-02-01
 **作者**: AI Assistant
+
+### 更新记录
+- **V4.0**: 交互优化 - 三页合并为两页（首页+应用抽屉）、常用区改为多行列表展示、移除首页字母索引、移除编辑模式（改为频率自动排序）、移除双击锁定手势
+- **V3.0**: 实现细节优化 - 数据模型分离、评分算法修正、系统集成、UI 交互实现、性能优化
+- **V2.0**: 初始设计文档
