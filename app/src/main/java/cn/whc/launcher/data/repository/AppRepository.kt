@@ -382,7 +382,6 @@ class AppRepository @Inject constructor(
     private fun AppEntity.toAppInfo(score: Float) = AppInfo(
         packageName = packageName,
         displayName = customName ?: appName,
-        icon = loadAppIcon(packageName),
         launchCount30d = 0,
         score = score,
         firstLetter = firstLetter,

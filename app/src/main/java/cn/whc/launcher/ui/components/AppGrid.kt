@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +49,8 @@ import cn.whc.launcher.data.model.LayoutSettings
 import cn.whc.launcher.ui.theme.BorderLight
 import cn.whc.launcher.ui.theme.ShadowColor
 import cn.whc.launcher.ui.theme.ShadowColorLight
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 应用图标网格组件 - Material You 风格
@@ -95,7 +99,20 @@ fun AppGridItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var isPressed by remember { mutableStateOf(false) }
+
+    // 异步加载图标
+    var icon by remember(app.packageName) { mutableStateOf<Drawable?>(null) }
+    LaunchedEffect(app.packageName) {
+        icon = withContext(Dispatchers.IO) {
+            try {
+                context.packageManager.getApplicationIcon(app.packageName)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
 
     // 按压缩放动画
     val scale by animateFloatAsState(
@@ -161,7 +178,7 @@ fun AppGridItem(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            app.icon?.let { drawable ->
+            icon?.let { drawable ->
                 DrawableImage(
                     drawable = drawable,
                     contentDescription = app.displayName,

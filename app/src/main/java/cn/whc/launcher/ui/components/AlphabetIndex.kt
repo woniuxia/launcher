@@ -1,5 +1,6 @@
 package cn.whc.launcher.ui.components
 
+import android.graphics.drawable.Drawable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +42,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +61,8 @@ import cn.whc.launcher.ui.theme.SecondaryPurple
 import cn.whc.launcher.ui.theme.ShadowColorLight
 import cn.whc.launcher.ui.theme.SurfaceLight
 import cn.whc.launcher.ui.theme.SurfaceMedium
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // 特殊索引符号
 const val SYMBOL_FAVORITES = "\u2726"
@@ -249,7 +254,20 @@ fun AppListItem(
     iconSize: Int = 48,
     textSize: Int = 16
 ) {
+    val context = LocalContext.current
     var isPressed by remember { mutableStateOf(false) }
+
+    // 异步加载图标
+    var icon by remember(app.packageName) { mutableStateOf<Drawable?>(null) }
+    LaunchedEffect(app.packageName) {
+        icon = withContext(Dispatchers.IO) {
+            try {
+                context.packageManager.getApplicationIcon(app.packageName)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.98f else 1f,
@@ -298,7 +316,7 @@ fun AppListItem(
                 )
                 .clip(RoundedCornerShape(12.dp))
         ) {
-            app.icon?.let { drawable ->
+            icon?.let { drawable ->
                 DrawableImage(
                     drawable = drawable,
                     contentDescription = app.displayName,

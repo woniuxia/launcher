@@ -1,15 +1,13 @@
 package cn.whc.launcher.data.model
 
-import android.graphics.drawable.Drawable
-
 /**
  * UI 层应用信息模型
  * 包含运行时计算的字段
+ * 注意：图标不在此处存储，由 UI 层异步加载以提升性能
  */
 data class AppInfo(
     val packageName: String,
     val displayName: String,
-    val icon: Drawable?,
     val launchCount30d: Int = 0,
     val score: Float = 0f,
     val firstLetter: String = "#",
