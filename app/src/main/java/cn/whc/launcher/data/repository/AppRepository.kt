@@ -137,7 +137,7 @@ class AppRepository @Inject constructor(
                 .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
                 .groupBy { it.firstLetter }
                 .mapValues { (_, group) -> group.sortedByDescending { it.score } }
-                .toSortedMap()
+                .toSortedMap(compareBy { if (it == "#") "\uFFFF" else it })
         }
     }
 

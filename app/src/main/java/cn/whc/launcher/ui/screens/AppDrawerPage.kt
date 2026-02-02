@@ -187,9 +187,9 @@ fun AppDrawerPage(
                     onLetterSelected = { letter ->
                         letterPositions[letter]?.let { position ->
                             coroutineScope.launch {
-                                // 滚动到对应位置，偏移1/3屏幕高度使其显示在2/3处
+                                // 直接定位到对应位置，偏移1/3屏幕高度使其显示在2/3处
                                 val offset = -(listState.layoutInfo.viewportSize.height / 3)
-                                listState.animateScrollToItem(position, offset)
+                                listState.scrollToItem(position, offset)
                             }
                         }
                     },
@@ -197,8 +197,8 @@ fun AppDrawerPage(
                     showFavorites = frequentApps.isNotEmpty(),
                     onFavoritesClick = {
                         coroutineScope.launch {
-                            // 滚动到列表顶部（常用区）
-                            listState.animateScrollToItem(0)
+                            // 直接定位到列表顶部（常用区）
+                            listState.scrollToItem(0)
                         }
                     },
                     showSettings = true,

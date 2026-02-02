@@ -165,22 +165,22 @@ fun AlphabetIndexBar(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
-                        .clickable {
-                            selectedLetter = letter
-                            if (hapticEnabled) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                            handleLetterSelected(letter)
-                        },
+                        .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
                     // 选中时的圆形背景
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(22.dp)
                             .clip(CircleShape)
-                            .background(bgColor),
+                            .background(bgColor)
+                            .clickable {
+                                selectedLetter = letter
+                                if (hapticEnabled) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                handleLetterSelected(letter)
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

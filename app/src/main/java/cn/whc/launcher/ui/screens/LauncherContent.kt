@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -111,7 +112,12 @@ fun LauncherContent(
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 1
+            beyondViewportPageCount = 1,
+            // 降低滑动切换阈值，从默认的 0.5 改为 0.2（滑动 20% 屏幕高度即可切换）
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                snapPositionalThreshold = 0.2f
+            )
         ) { page ->
             when (page) {
                 0 -> HomePage(
@@ -124,11 +130,11 @@ fun LauncherContent(
                         drawerLetterPositions[letter]?.let { position ->
                             coroutineScope.launch {
                                 isLetterNavigation = true
-                                // 先跳转到抽屉页
-                                pagerState.animateScrollToPage(1)
-                                // 滚动到对应位置，偏移1/3屏幕高度使其显示在2/3处
+                                // 直接跳转到抽屉页
+                                pagerState.scrollToPage(1)
+                                // 直接定位到对应位置，偏移1/3屏幕高度使其显示在2/3处
                                 val offset = -(drawerListState.layoutInfo.viewportSize.height / 3)
-                                drawerListState.animateScrollToItem(position, offset)
+                                drawerListState.scrollToItem(position, offset)
                             }
                         }
                     },
@@ -136,9 +142,9 @@ fun LauncherContent(
                     onFavoritesClick = {
                         coroutineScope.launch {
                             isLetterNavigation = true
-                            // 跳转到抽屉页并滚动到顶部（常用区）
-                            pagerState.animateScrollToPage(1)
-                            drawerListState.animateScrollToItem(0)
+                            // 直接跳转到抽屉页并定位到顶部（常用区）
+                            pagerState.scrollToPage(1)
+                            drawerListState.scrollToItem(0)
                         }
                     },
                     onSettingsClick = onNavigateToSettings
