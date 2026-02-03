@@ -1,7 +1,10 @@
 package cn.whc.launcher.util
 
 import java.time.LocalDate
-import java.time.LocalDateTime
+import kotlin.math.floor
+import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.PI
 
 /**
  * 农历计算工具类
@@ -28,6 +31,51 @@ object LunarCalendar {
 
     // 生肖
     private val SHENG_XIAO = arrayOf("鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪")
+
+    // 24节气名称
+    private val SOLAR_TERMS = arrayOf(
+        "小寒", "大寒", "立春", "雨水", "惊蛰", "春分",
+        "清明", "谷雨", "立夏", "小满", "芒种", "夏至",
+        "小暑", "大暑", "立秋", "处暑", "白露", "秋分",
+        "寒露", "霜降", "立冬", "小雪", "大雪", "冬至"
+    )
+
+    // 节气对应的太阳黄经（从小寒0°开始，每15°一个节气）
+    private val SOLAR_TERM_ANGLES = arrayOf(
+        285.0, 300.0, 315.0, 330.0, 345.0, 0.0,
+        15.0, 30.0, 45.0, 60.0, 75.0, 90.0,
+        105.0, 120.0, 135.0, 150.0, 165.0, 180.0,
+        195.0, 210.0, 225.0, 240.0, 255.0, 270.0
+    )
+
+    // 农历节日 (月, 日) -> 节日名
+    private val LUNAR_FESTIVALS = mapOf(
+        Pair(1, 1) to "春节",
+        Pair(1, 15) to "元宵节",
+        Pair(5, 5) to "端午节",
+        Pair(7, 7) to "七夕",
+        Pair(7, 15) to "中元节",
+        Pair(8, 15) to "中秋节",
+        Pair(9, 9) to "重阳节",
+        Pair(12, 8) to "腊八节",
+        Pair(12, 30) to "除夕"  // 注意：小月时为腊月廿九
+    )
+
+    // 公历节日 (月, 日) -> 节日名
+    private val SOLAR_FESTIVALS = mapOf(
+        Pair(1, 1) to "元旦",
+        Pair(2, 14) to "情人节",
+        Pair(3, 8) to "妇女节",
+        Pair(4, 1) to "愚人节",
+        Pair(5, 1) to "劳动节",
+        Pair(5, 4) to "青年节",
+        Pair(6, 1) to "儿童节",
+        Pair(7, 1) to "建党节",
+        Pair(8, 1) to "建军节",
+        Pair(9, 10) to "教师节",
+        Pair(10, 1) to "国庆节",
+        Pair(12, 25) to "圣诞节"
+    )
 
     // 农历数据表 (1900-2100)
     // 每个元素表示一年的农历信息，用16位表示
@@ -228,5 +276,198 @@ object LunarCalendar {
     fun getTodayLunarString(): String {
         val lunar = solarToLunar(LocalDate.now())
         return lunar.getFullDateStr()
+    }
+
+    /**
+     * 节气/节日信息
+     */
+    data class FestivalInfo(
+        val name: String,
+        val date: LocalDate,
+        val daysUntil: Int,
+        val isSolarTerm: Boolean  // true=节气, false=节日
+    )
+
+    /**
+     * 计算太阳黄经（简化算法）
+     * 基于 VSOP87 简化版本
+     */
+    private fun getSunLongitude(jd: Double): Double {
+        val t = (jd - 2451545.0) / 36525.0  // 儒略世纪数
+
+        // 太阳平黄经
+        var l0 = 280.46646 + 36000.76983 * t + 0.0003032 * t * t
+        l0 = l0 % 360
+        if (l0 < 0) l0 += 360
+
+        // 太阳平近点角
+        var m = 357.52911 + 35999.05029 * t - 0.0001537 * t * t
+        m = m % 360
+        if (m < 0) m += 360
+        val mRad = m * PI / 180
+
+        // 太阳中心差
+        val c = (1.914602 - 0.004817 * t - 0.000014 * t * t) * sin(mRad) +
+                (0.019993 - 0.000101 * t) * sin(2 * mRad) +
+                0.000289 * sin(3 * mRad)
+
+        // 太阳真黄经
+        var sunLong = l0 + c
+        sunLong = sunLong % 360
+        if (sunLong < 0) sunLong += 360
+
+        return sunLong
+    }
+
+    /**
+     * 将 LocalDate 转换为儒略日
+     */
+    private fun dateToJD(date: LocalDate): Double {
+        var y = date.year
+        var m = date.monthValue
+        val d = date.dayOfMonth.toDouble()
+
+        if (m <= 2) {
+            y -= 1
+            m += 12
+        }
+
+        val a = floor(y / 100.0)
+        val b = 2 - a + floor(a / 4.0)
+
+        return floor(365.25 * (y + 4716)) + floor(30.6001 * (m + 1)) + d + b - 1524.5
+    }
+
+    /**
+     * 获取指定年份的所有节气日期
+     */
+    fun getSolarTermsForYear(year: Int): List<Pair<String, LocalDate>> {
+        val result = mutableListOf<Pair<String, LocalDate>>()
+
+        // 从上一年12月21日开始搜索（冬至前后）
+        var searchDate = LocalDate.of(year - 1, 12, 21)
+        val endDate = LocalDate.of(year + 1, 1, 10)
+        var lastTermIndex = -1
+
+        while (searchDate.isBefore(endDate)) {
+            val jd = dateToJD(searchDate)
+            val sunLong = getSunLongitude(jd)
+
+            // 找到当前太阳黄经对应的节气索引
+            val termIndex = SOLAR_TERM_ANGLES.indexOfFirst { angle ->
+                val diff = (sunLong - angle + 360) % 360
+                diff < 1.0 || diff > 359.0
+            }
+
+            if (termIndex != -1 && termIndex != lastTermIndex) {
+                // 只保留目标年份的节气
+                if (searchDate.year == year) {
+                    result.add(Pair(SOLAR_TERMS[termIndex], searchDate))
+                }
+                lastTermIndex = termIndex
+            }
+
+            searchDate = searchDate.plusDays(1)
+        }
+
+        return result.sortedBy { it.second }
+    }
+
+    /**
+     * 获取最近的节气（未来60天内）
+     */
+    fun getNextSolarTerm(fromDate: LocalDate = LocalDate.now()): FestivalInfo? {
+        val terms = getSolarTermsForYear(fromDate.year) + getSolarTermsForYear(fromDate.year + 1)
+
+        for ((name, date) in terms) {
+            val days = (date.toEpochDay() - fromDate.toEpochDay()).toInt()
+            if (days >= 0 && days <= 60) {
+                return FestivalInfo(name, date, days, true)
+            }
+        }
+        return null
+    }
+
+    /**
+     * 获取最近的节日（包括公历和农历节日，未来60天内）
+     */
+    fun getNextFestival(fromDate: LocalDate = LocalDate.now()): FestivalInfo? {
+        val festivals = mutableListOf<FestivalInfo>()
+
+        // 检查公历节日（当年和下一年）
+        for (year in fromDate.year..(fromDate.year + 1)) {
+            for ((monthDay, name) in SOLAR_FESTIVALS) {
+                try {
+                    val date = LocalDate.of(year, monthDay.first, monthDay.second)
+                    val days = (date.toEpochDay() - fromDate.toEpochDay()).toInt()
+                    if (days >= 0 && days <= 60) {
+                        festivals.add(FestivalInfo(name, date, days, false))
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+
+        // 检查农历节日（当年和下一年）
+        // 需要将农历日期转换为公历
+        for (lunarYear in fromDate.year..(fromDate.year + 1)) {
+            for ((monthDay, name) in LUNAR_FESTIVALS) {
+                val solarDate = lunarToSolar(lunarYear, monthDay.first, monthDay.second)
+                if (solarDate != null) {
+                    val days = (solarDate.toEpochDay() - fromDate.toEpochDay()).toInt()
+                    if (days >= 0 && days <= 60) {
+                        festivals.add(FestivalInfo(name, solarDate, days, false))
+                    }
+                }
+            }
+        }
+
+        return festivals.minByOrNull { it.daysUntil }
+    }
+
+    /**
+     * 获取最近的节气或节日（优先显示最近的）
+     */
+    fun getNextEvent(fromDate: LocalDate = LocalDate.now()): FestivalInfo? {
+        val term = getNextSolarTerm(fromDate)
+        val festival = getNextFestival(fromDate)
+
+        return when {
+            term == null -> festival
+            festival == null -> term
+            festival.daysUntil <= term.daysUntil -> festival
+            else -> term
+        }
+    }
+
+    /**
+     * 农历日期转公历（简化版，只支持常见范围）
+     */
+    private fun lunarToSolar(lunarYear: Int, lunarMonth: Int, lunarDay: Int): LocalDate? {
+        try {
+            // 获取该农历年正月初一对应的公历日期
+            val baseDate = LocalDate.of(1900, 1, 31)  // 农历1900年正月初一
+
+            // 计算从1900年到目标农历年的天数
+            var totalDays = 0L
+            for (year in 1900 until lunarYear) {
+                totalDays += getLunarYearDays(year)
+            }
+
+            // 计算从正月到目标月的天数
+            val leapMonth = getLeapMonth(lunarYear)
+            for (month in 1 until lunarMonth) {
+                totalDays += getLunarMonthDays(lunarYear, month)
+                if (month == leapMonth) {
+                    totalDays += getLeapDays(lunarYear)
+                }
+            }
+
+            // 加上日期
+            totalDays += lunarDay - 1
+
+            return baseDate.plusDays(totalDays)
+        } catch (_: Exception) {
+            return null
+        }
     }
 }

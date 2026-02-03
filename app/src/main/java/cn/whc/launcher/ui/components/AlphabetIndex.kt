@@ -350,11 +350,17 @@ fun LetterHeader(
     letter: String,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(end = 8.dp)
                 .height(36.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(SurfaceLight)
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,

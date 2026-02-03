@@ -114,7 +114,7 @@ fun ClockWidget(
                     text = currentTime.format(timeFormatter),
                     style = TextStyle(
                         color = textColor,
-                        fontSize = 76.sp,
+                        fontSize = 84.sp,
                         fontWeight = FontWeight.Thin,
                         letterSpacing = (-1).sp,
                         shadow = textShadow
@@ -152,6 +152,30 @@ fun ClockWidget(
                         shadow = lightShadow
                     )
                 )
+            }
+
+            // 节气/节日倒计时
+            if (settings.showFestival) {
+                val nextEvent = remember(currentDate) {
+                    LunarCalendar.getNextEvent(currentDate)
+                }
+                if (nextEvent != null) {
+                    val displayText = when (nextEvent.daysUntil) {
+                        0 -> "今天${nextEvent.name}"
+                        1 -> "明天${nextEvent.name}"
+                        else -> "距${nextEvent.name}还有${nextEvent.daysUntil}天"
+                    }
+                    Text(
+                        text = displayText,
+                        style = TextStyle(
+                            color = OnSurfaceTertiary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                            letterSpacing = 0.3.sp,
+                            shadow = lightShadow
+                        )
+                    )
+                }
             }
         }
     }

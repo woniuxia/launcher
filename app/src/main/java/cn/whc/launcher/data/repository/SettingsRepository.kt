@@ -53,6 +53,7 @@ class SettingsRepository @Inject constructor(
     private val SHOW_SECONDS_KEY = booleanPreferencesKey("clock_show_seconds")
     private val SHOW_DATE_KEY = booleanPreferencesKey("clock_show_date")
     private val SHOW_LUNAR_KEY = booleanPreferencesKey("clock_show_lunar")
+    private val SHOW_FESTIVAL_KEY = booleanPreferencesKey("clock_show_festival")
     private val IS_24_HOUR_KEY = booleanPreferencesKey("clock_is_24_hour")
 
     // === Search Keys ===
@@ -89,6 +90,7 @@ class SettingsRepository @Inject constructor(
                 showSeconds = prefs[SHOW_SECONDS_KEY] ?: false,
                 showDate = prefs[SHOW_DATE_KEY] ?: true,
                 showLunar = prefs[SHOW_LUNAR_KEY] ?: true,
+                showFestival = prefs[SHOW_FESTIVAL_KEY] ?: true,
                 is24Hour = prefs[IS_24_HOUR_KEY] ?: true
             ),
             search = SearchSettings(
@@ -135,6 +137,7 @@ class SettingsRepository @Inject constructor(
             prefs[SHOW_SECONDS_KEY] = clock.showSeconds
             prefs[SHOW_DATE_KEY] = clock.showDate
             prefs[SHOW_LUNAR_KEY] = clock.showLunar
+            prefs[SHOW_FESTIVAL_KEY] = clock.showFestival
             prefs[IS_24_HOUR_KEY] = clock.is24Hour
         }
     }

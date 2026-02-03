@@ -56,7 +56,8 @@ class LauncherViewModel @Inject constructor(
         .flatMapLatest { s ->
             appRepository.observeFrequentApps(
                 excludeHomeApps = true,
-                limit = s.layout.drawerFrequentCount
+                limit = s.layout.drawerFrequentCount,
+                homeAppLimit = s.layout.homeDisplayCount
             )
         }
         .stateIn(
@@ -72,6 +73,10 @@ class LauncherViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyMap()
         )
+
+    // 数据是否就绪（用于启动时的过渡动画）
+    private val _isDataReady = MutableStateFlow(false)
+    val isDataReady: StateFlow<Boolean> = _isDataReady.asStateFlow()
 
     // 搜索相关状态
     private val _searchQuery = MutableStateFlow("")
@@ -91,6 +96,15 @@ class LauncherViewModel @Inject constructor(
         // 同步已安装应用
         viewModelScope.launch {
             appRepository.syncInstalledApps()
+        }
+
+        // 监听数据就绪状态（allAppsGrouped 有数据时标记就绪）
+        viewModelScope.launch {
+            allAppsGrouped.collect { apps ->
+                if (apps.isNotEmpty() && !_isDataReady.value) {
+                    _isDataReady.value = true
+                }
+            }
         }
     }
 

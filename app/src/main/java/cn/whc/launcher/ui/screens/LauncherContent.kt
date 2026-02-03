@@ -1,6 +1,8 @@
 package cn.whc.launcher.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -20,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import cn.whc.launcher.ui.components.FloatingSearchButton
 import cn.whc.launcher.ui.components.WallpaperBackground
@@ -41,6 +44,14 @@ fun LauncherContent(
     val isSearchActive by viewModel.isSearchActive.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
+    val isDataReady by viewModel.isDataReady.collectAsState()
+
+    // 淡入动画：数据就绪后从 0 到 1
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (isDataReady) 1f else 0f,
+        animationSpec = tween(durationMillis = 200),
+        label = "contentAlpha"
+    )
 
     val pagerState = rememberPagerState(
         initialPage = 0,
@@ -88,8 +99,8 @@ fun LauncherContent(
         }
     }
 
-    // 返回键处理
-    BackHandler(enabled = true) {
+    // 返回键处理：仅在搜索激活或抽屉页时拦截
+    BackHandler(enabled = isSearchActive || pagerState.currentPage == 1) {
         when {
             isSearchActive -> viewModel.setSearchActive(false)
             pagerState.currentPage == 1 -> {
@@ -97,7 +108,6 @@ fun LauncherContent(
                     pagerState.animateScrollToPage(0)
                 }
             }
-            // 在首页不退出
         }
     }
 
@@ -108,10 +118,12 @@ fun LauncherContent(
             blurRadius = settings.appearance.blurStrength
         )
 
-        // 页面内容
+        // 页面内容（带淡入动画）
         VerticalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(contentAlpha),
             beyondViewportPageCount = 1,
             // 降低滑动切换阈值，从默认的 0.5 改为 0.2（滑动 20% 屏幕高度即可切换）
             flingBehavior = PagerDefaults.flingBehavior(
@@ -160,8 +172,8 @@ fun LauncherContent(
             }
         }
 
-        // 悬浮搜索按钮 (仅在应用抽屉页显示)
-        if (pagerState.currentPage == 1 && settings.search.enableSearch) {
+        // 悬浮搜索按钮 (仅在应用抽屉页且数据就绪后显示)
+        if (isDataReady && pagerState.currentPage == 1 && settings.search.enableSearch) {
             FloatingSearchButton(
                 isExpanded = isSearchActive,
                 searchQuery = searchQuery,

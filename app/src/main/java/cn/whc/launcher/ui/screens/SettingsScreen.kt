@@ -316,6 +316,16 @@ fun SettingsScreen(
 
                 item {
                     SwitchSettingItem(
+                        title = "显示节气节日",
+                        checked = settings.clock.showFestival,
+                        onCheckedChange = {
+                            viewModel.updateClockSettings(settings.clock.copy(showFestival = it))
+                        }
+                    )
+                }
+
+                item {
+                    SwitchSettingItem(
                         title = "24小时制",
                         checked = settings.clock.is24Hour,
                         onCheckedChange = {

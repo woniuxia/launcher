@@ -104,20 +104,27 @@ class AppRepository @Inject constructor(
     /**
      * 获取应用抽屉常用区应用 (排除首页应用)
      */
-    fun observeFrequentApps(excludeHomeApps: Boolean, limit: Int): Flow<List<AppInfo>> {
+    fun observeFrequentApps(excludeHomeApps: Boolean, limit: Int, homeAppLimit: Int = 0): Flow<List<AppInfo>> {
         return appDao.getAllApps().combine(blacklistDao.getAllBlacklist()) { apps, blacklist ->
             val blacklistPackages = blacklist.map { it.packageName }.toSet()
-            val homePackages = if (excludeHomeApps) {
-                runCatching { appDao.getHomeAppPackages() }.getOrDefault(emptyList()).toSet()
+            val scores = getScores()
+
+            // 获取首页应用包名列表（按 score 排序取前 homeAppLimit 个）
+            val homePackages = if (excludeHomeApps && homeAppLimit > 0) {
+                apps.filter { it.packageName !in blacklistPackages && !it.isHidden }
+                    .map { it to (scores[it.packageName] ?: 0f) }
+                    .sortedByDescending { it.second }
+                    .take(homeAppLimit)
+                    .map { it.first.packageName }
+                    .toSet()
             } else {
                 emptySet()
             }
-            val scores = getScores()
 
             apps.filter {
                 it.packageName !in blacklistPackages &&
                         !it.isHidden &&
-                        (if (excludeHomeApps) it.packageName !in homePackages else true)
+                        it.packageName !in homePackages
             }
                 .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
                 .sortedByDescending { it.score }
@@ -190,14 +197,61 @@ class AppRepository @Inject constructor(
 
     /**
      * 打开系统时钟应用
+     * Android 16 兼容：多重 fallback 方案
      */
     fun openClock(): Boolean {
-        return try {
-            val intent = Intent(AlarmClock.ACTION_SHOW_ALARMS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // 方案1: 标准 ACTION_SHOW_ALARMS
+        if (tryStartActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS))) {
+            return true
+        }
+
+        // 方案2: 尝试常见时钟应用包名
+        val clockPackages = listOf(
+            "com.google.android.deskclock",      // Google 时钟
+            "com.android.deskclock",             // AOSP 时钟
+            "com.sec.android.app.clockpackage",  // 三星时钟
+            "com.huawei.deskclock",              // 华为时钟
+            "com.oppo.clock",                    // OPPO 时钟
+            "com.coloros.alarmclock",            // ColorOS 时钟
+            "com.vivo.clock",                    // vivo 时钟
+            "com.miui.clock",                    // 小米时钟
+            "com.oneplus.deskclock",             // 一加时钟
+            "com.asus.deskclock"                 // 华硕时钟
+        )
+
+        for (pkg in clockPackages) {
+            val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null && tryStartActivity(launchIntent)) {
+                return true
             }
-            context.startActivity(intent)
-            true
+        }
+
+        // 方案3: 尝试 ACTION_SET_ALARM（部分时钟应用支持）
+        if (tryStartActivity(Intent(AlarmClock.ACTION_SET_ALARM))) {
+            return true
+        }
+
+        // 方案4: 打开系统设置的日期时间页面
+        if (tryStartActivity(Intent(android.provider.Settings.ACTION_DATE_SETTINGS))) {
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * 安全启动 Activity
+     */
+    private fun tryStartActivity(intent: Intent): Boolean {
+        return try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // 检查是否有应用能处理此 Intent
+            if (intent.resolveActivity(packageManager) != null) {
+                context.startActivity(intent)
+                true
+            } else {
+                false
+            }
         } catch (e: Exception) {
             false
         }

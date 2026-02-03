@@ -35,6 +35,7 @@ data class ClockSettings(
     val showSeconds: Boolean = false,
     val showDate: Boolean = true,
     val showLunar: Boolean = true,
+    val showFestival: Boolean = true,
     val is24Hour: Boolean = true
 )
 
