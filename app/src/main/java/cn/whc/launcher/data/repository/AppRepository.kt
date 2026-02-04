@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.provider.AlarmClock
+import android.provider.CallLog
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
@@ -15,7 +16,9 @@ import cn.whc.launcher.util.PinyinHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -38,6 +41,17 @@ class AppRepository @Inject constructor(
     private var cachedScores: Map<String, Float> = emptyMap()
     private var lastScoreUpdateTime: Long = 0
     private val scoreExpirationMs: Long = 5 * 60 * 1000 // 5分钟
+
+    // 排序刷新触发器：只有触发时才重新计算排序
+    private val _sortRefreshTrigger = MutableStateFlow(0L)
+
+    /**
+     * 触发排序刷新（页面重新激活时调用）
+     */
+    fun triggerSortRefresh() {
+        invalidateScoreCache()
+        _sortRefreshTrigger.value = System.currentTimeMillis()
+    }
 
     /**
      * 扫描并同步已安装应用到数据库
@@ -88,9 +102,14 @@ class AppRepository @Inject constructor(
 
     /**
      * 获取首页应用列表 (按频率排序)
+     * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
      */
     fun observeHomeApps(limit: Int): Flow<List<AppInfo>> {
-        return appDao.getAllApps().combine(blacklistDao.getAllBlacklist()) { apps, blacklist ->
+        return combine(
+            appDao.getAllApps(),
+            blacklistDao.getAllBlacklist(),
+            _sortRefreshTrigger
+        ) { apps, blacklist, _ ->
             val blacklistPackages = blacklist.map { it.packageName }.toSet()
             val scores = getScores()
 
@@ -98,14 +117,19 @@ class AppRepository @Inject constructor(
                 .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
                 .sortedByDescending { it.score }
                 .take(limit)
-        }
+        }.distinctUntilChangedBy { list -> list.map { it.packageName } }
     }
 
     /**
      * 获取应用抽屉常用区应用 (排除首页应用)
+     * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
      */
     fun observeFrequentApps(excludeHomeApps: Boolean, limit: Int, homeAppLimit: Int = 0): Flow<List<AppInfo>> {
-        return appDao.getAllApps().combine(blacklistDao.getAllBlacklist()) { apps, blacklist ->
+        return combine(
+            appDao.getAllApps(),
+            blacklistDao.getAllBlacklist(),
+            _sortRefreshTrigger
+        ) { apps, blacklist, _ ->
             val blacklistPackages = blacklist.map { it.packageName }.toSet()
             val scores = getScores()
 
@@ -129,14 +153,19 @@ class AppRepository @Inject constructor(
                 .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
                 .sortedByDescending { it.score }
                 .take(limit)
-        }
+        }.distinctUntilChangedBy { list -> list.map { it.packageName } }
     }
 
     /**
      * 获取所有应用 (按字母分组)
+     * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
      */
     fun observeAllAppsGrouped(): Flow<Map<String, List<AppInfo>>> {
-        return appDao.getAllApps().combine(blacklistDao.getAllBlacklist()) { apps, blacklist ->
+        return combine(
+            appDao.getAllApps(),
+            blacklistDao.getAllBlacklist(),
+            _sortRefreshTrigger
+        ) { apps, blacklist, _ ->
             val blacklistPackages = blacklist.map { it.packageName }.toSet()
             val scores = getScores()
 
@@ -145,6 +174,9 @@ class AppRepository @Inject constructor(
                 .groupBy { it.firstLetter }
                 .mapValues { (_, group) -> group.sortedByDescending { it.score } }
                 .toSortedMap(compareBy { if (it == "#") "\uFFFF" else it })
+        }.distinctUntilChangedBy { map ->
+            // 比较每个分组内的包名顺序
+            map.mapValues { (_, list) -> list.map { it.packageName } }
         }
     }
 
@@ -162,6 +194,7 @@ class AppRepository @Inject constructor(
 
     /**
      * 记录应用启动
+     * 注意：只更新数据库，不触发排序刷新，排序在页面重新激活时更新
      */
     suspend fun recordAppLaunch(packageName: String) = withContext(Dispatchers.IO) {
         val today = LocalDate.now().format(dateFormatter)
@@ -173,14 +206,20 @@ class AppRepository @Inject constructor(
         // 增加今日启动次数
         dailyStatsDao.incrementLaunchCount(packageName, today)
 
-        // 使评分缓存失效
-        invalidateScoreCache()
+        // 不再调用 invalidateScoreCache()，排序在页面重新激活时更新
     }
 
     /**
      * 启动应用
      */
     fun launchApp(packageName: String): Boolean {
+        // 电话应用特殊处理：打开最近通话记录
+        if (isDialerApp(packageName)) {
+            if (openRecentCalls()) {
+                return true
+            }
+        }
+
         return try {
             val intent = packageManager.getLaunchIntentForPackage(packageName)
             if (intent != null) {
@@ -193,6 +232,46 @@ class AppRepository @Inject constructor(
         } catch (e: Exception) {
             false
         }
+    }
+
+    /**
+     * 判断是否为电话/拨号应用
+     */
+    private fun isDialerApp(packageName: String): Boolean {
+        val dialerPackages = listOf(
+            "com.android.dialer",           // AOSP 拨号器
+            "com.google.android.dialer",    // Google 拨号器
+            "com.samsung.android.dialer",   // 三星拨号器
+            "com.samsung.android.incallui", // 三星通话
+            "com.huawei.contacts",          // 华为联系人/拨号
+            "com.oppo.dialer",              // OPPO 拨号器
+            "com.coloros.phonemanager",     // ColorOS 电话
+            "com.vivo.contacts",            // vivo 联系人/拨号
+            "com.miui.contacts",            // 小米联系人/拨号
+            "com.oneplus.dialer",           // 一加拨号器
+            "com.asus.contacts"             // 华硕联系人
+        )
+        return packageName in dialerPackages
+    }
+
+    /**
+     * 打开最近通话记录
+     */
+    private fun openRecentCalls(): Boolean {
+        // 方案1: 使用 CallLog 打开通话记录
+        val callLogIntent = Intent(Intent.ACTION_VIEW).apply {
+            type = CallLog.Calls.CONTENT_TYPE
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (tryStartActivity(callLogIntent)) {
+            return true
+        }
+
+        // 方案2: 使用 ACTION_DIAL 打开拨号器（通常显示最近通话）
+        val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return tryStartActivity(dialIntent)
     }
 
     /**

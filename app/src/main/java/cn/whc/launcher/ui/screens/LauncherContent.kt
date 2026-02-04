@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import cn.whc.launcher.ui.components.FloatingSearchButton
 import cn.whc.launcher.ui.components.WallpaperBackground
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
@@ -59,6 +61,11 @@ fun LauncherContent(
     )
     val drawerListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    // 页面重新激活时刷新应用排序
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshAppSort()
+    }
 
     // 计算抽屉列表中字母头的位置（与 AppDrawerPage 的列表结构一致）
     val drawerLetterPositions = remember(frequentApps, allAppsGrouped) {

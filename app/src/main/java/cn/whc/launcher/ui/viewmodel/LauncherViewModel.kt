@@ -262,4 +262,11 @@ class LauncherViewModel @Inject constructor(
             appRepository.onAppUpdated(packageName)
         }
     }
+
+    /**
+     * 刷新应用排序（页面重新激活时调用）
+     */
+    fun refreshAppSort() {
+        appRepository.triggerSortRefresh()
+    }
 }
