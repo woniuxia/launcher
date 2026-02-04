@@ -2,17 +2,22 @@ package cn.whc.launcher.data.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 /**
  * 应用信息数据库实体
  * 注意: 图标从 PackageManager 实时加载，不存储在数据库
+ * 使用 packageName + activityName 作为复合主键，支持同一包多个启动入口
  */
-@Entity(tableName = "apps")
+@Entity(
+    tableName = "apps",
+    primaryKeys = ["package_name", "activity_name"]
+)
 data class AppEntity(
-    @PrimaryKey
     @ColumnInfo(name = "package_name")
     val packageName: String,
+
+    @ColumnInfo(name = "activity_name")
+    val activityName: String,
 
     @ColumnInfo(name = "app_name")
     val appName: String,

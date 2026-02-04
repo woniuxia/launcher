@@ -9,21 +9,22 @@ import androidx.room.PrimaryKey
 /**
  * 每日使用统计数据库实体
  * 保留30天数据
+ * 使用 packageName + activityName 关联到 AppEntity
  */
 @Entity(
     tableName = "daily_stats",
     foreignKeys = [
         ForeignKey(
             entity = AppEntity::class,
-            parentColumns = ["package_name"],
-            childColumns = ["package_name"],
+            parentColumns = ["package_name", "activity_name"],
+            childColumns = ["package_name", "activity_name"],
             onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
-        Index(value = ["package_name"]),
+        Index(value = ["package_name", "activity_name"]),
         Index(value = ["date"]),
-        Index(value = ["package_name", "date"], unique = true)
+        Index(value = ["package_name", "activity_name", "date"], unique = true)
     ]
 )
 data class DailyStatEntity(
@@ -32,6 +33,9 @@ data class DailyStatEntity(
 
     @ColumnInfo(name = "package_name")
     val packageName: String,
+
+    @ColumnInfo(name = "activity_name")
+    val activityName: String,
 
     @ColumnInfo(name = "date")
     val date: String,  // 格式: YYYY-MM-DD

@@ -143,7 +143,7 @@ fun LauncherContent(
                     homeApps = homeApps,
                     availableLetters = availableLetters,
                     settings = settings,
-                    onAppClick = { viewModel.launchApp(it.packageName) },
+                    onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
                     onClockClick = { viewModel.openClock() },
                     onLetterSelected = { letter ->
                         drawerLetterPositions[letter]?.let { position ->
@@ -173,7 +173,7 @@ fun LauncherContent(
                     allAppsGrouped = allAppsGrouped,
                     settings = settings,
                     listState = drawerListState,
-                    onAppClick = { viewModel.launchApp(it.packageName) },
+                    onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
                     onSettingsClick = onNavigateToSettings
                 )
             }
@@ -187,7 +187,7 @@ fun LauncherContent(
                 searchResults = searchResults,
                 onToggle = { viewModel.setSearchActive(it) },
                 onQueryChange = { viewModel.updateSearchQuery(it) },
-                onAppClick = { viewModel.launchApp(it.packageName) },
+                onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
                 modifier = Modifier
                     .align(if (isSearchActive) Alignment.TopCenter else Alignment.BottomEnd)
                     .then(

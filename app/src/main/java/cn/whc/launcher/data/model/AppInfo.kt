@@ -7,6 +7,7 @@ package cn.whc.launcher.data.model
  */
 data class AppInfo(
     val packageName: String,
+    val activityName: String,
     val displayName: String,
     val launchCount30d: Int = 0,
     val score: Float = 0f,

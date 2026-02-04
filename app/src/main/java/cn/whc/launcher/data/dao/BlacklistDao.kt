@@ -15,17 +15,14 @@ interface BlacklistDao {
     @Query("SELECT * FROM blacklist")
     suspend fun getAllBlacklistList(): List<BlacklistEntity>
 
-    @Query("SELECT package_name FROM blacklist")
-    suspend fun getBlacklistPackages(): List<String>
-
-    @Query("SELECT EXISTS(SELECT 1 FROM blacklist WHERE package_name = :packageName)")
-    suspend fun isBlacklisted(packageName: String): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM blacklist WHERE package_name = :packageName AND activity_name = :activityName)")
+    suspend fun isBlacklisted(packageName: String, activityName: String): Boolean
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(blacklistEntity: BlacklistEntity)
 
-    @Query("DELETE FROM blacklist WHERE package_name = :packageName")
-    suspend fun delete(packageName: String)
+    @Query("DELETE FROM blacklist WHERE package_name = :packageName AND activity_name = :activityName")
+    suspend fun delete(packageName: String, activityName: String)
 
     @Query("DELETE FROM blacklist")
     suspend fun clearAll()

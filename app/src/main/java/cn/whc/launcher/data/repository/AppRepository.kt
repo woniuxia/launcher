@@ -1,5 +1,6 @@
 package cn.whc.launcher.data.repository
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -37,7 +38,7 @@ class AppRepository @Inject constructor(
     private val packageManager: PackageManager = context.packageManager
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    // 评分缓存
+    // 评分缓存 - 使用 componentKey (packageName/activityName) 作为键
     private var cachedScores: Map<String, Float> = emptyMap()
     private var lastScoreUpdateTime: Long = 0
     private val scoreExpirationMs: Long = 5 * 60 * 1000 // 5分钟
@@ -58,24 +59,26 @@ class AppRepository @Inject constructor(
      */
     suspend fun syncInstalledApps() = withContext(Dispatchers.IO) {
         val installedApps = getInstalledLaunchableApps()
-        val existingPackages = appDao.getAllPackageNames().toSet()
+        val existingKeys = appDao.getAllComponentKeys().map { it.toComponentKey() }.toSet()
 
         // 新安装的应用
-        val newApps = installedApps.filter { it.packageName !in existingPackages }
+        val installedKeys = installedApps.map { it.componentKey }.toSet()
+        val newApps = installedApps.filter { it.componentKey !in existingKeys }
         if (newApps.isNotEmpty()) {
             appDao.insertAll(newApps.map { it.toEntity() })
         }
 
         // 已卸载的应用
-        val installedPackages = installedApps.map { it.packageName }.toSet()
-        val removedPackages = existingPackages - installedPackages
-        removedPackages.forEach { pkg ->
-            appDao.deleteByPackageName(pkg)
+        val removedKeys = existingKeys - installedKeys
+        removedKeys.forEach { key ->
+            val (pkg, activity) = key.split("/", limit = 2)
+            appDao.delete(pkg, activity)
         }
     }
 
     /**
      * 获取系统中所有可启动的应用
+     * 包括同一包名下的多个 launcher activity
      */
     private fun getInstalledLaunchableApps(): List<InstalledApp> {
         val intent = Intent(Intent.ACTION_MAIN).apply {
@@ -85,6 +88,7 @@ class AppRepository @Inject constructor(
             .mapNotNull { resolveInfo ->
                 val appInfo = resolveInfo.activityInfo.applicationInfo
                 val packageName = appInfo.packageName
+                val activityName = resolveInfo.activityInfo.name
 
                 // 排除自己
                 if (packageName == context.packageName) return@mapNotNull null
@@ -94,6 +98,7 @@ class AppRepository @Inject constructor(
 
                 InstalledApp(
                     packageName = packageName,
+                    activityName = activityName,
                     appName = appName,
                     isSystemApp = isSystemApp
                 )
@@ -110,14 +115,14 @@ class AppRepository @Inject constructor(
             blacklistDao.getAllBlacklist(),
             _sortRefreshTrigger
         ) { apps, blacklist, _ ->
-            val blacklistPackages = blacklist.map { it.packageName }.toSet()
+            val blacklistKeys = blacklist.map { it.toComponentKey() }.toSet()
             val scores = getScores()
 
-            apps.filter { it.packageName !in blacklistPackages && !it.isHidden }
-                .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
+            apps.filter { it.toComponentKey() !in blacklistKeys && !it.isHidden }
+                .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
                 .sortedByDescending { it.score }
                 .take(limit)
-        }.distinctUntilChangedBy { list -> list.map { it.packageName } }
+        }.distinctUntilChangedBy { list -> list.map { it.componentKey } }
     }
 
     /**
@@ -130,30 +135,30 @@ class AppRepository @Inject constructor(
             blacklistDao.getAllBlacklist(),
             _sortRefreshTrigger
         ) { apps, blacklist, _ ->
-            val blacklistPackages = blacklist.map { it.packageName }.toSet()
+            val blacklistKeys = blacklist.map { it.toComponentKey() }.toSet()
             val scores = getScores()
 
-            // 获取首页应用包名列表（按 score 排序取前 homeAppLimit 个）
-            val homePackages = if (excludeHomeApps && homeAppLimit > 0) {
-                apps.filter { it.packageName !in blacklistPackages && !it.isHidden }
-                    .map { it to (scores[it.packageName] ?: 0f) }
+            // 获取首页应用 componentKey 列表（按 score 排序取前 homeAppLimit 个）
+            val homeKeys = if (excludeHomeApps && homeAppLimit > 0) {
+                apps.filter { it.toComponentKey() !in blacklistKeys && !it.isHidden }
+                    .map { it to (scores[it.toComponentKey()] ?: 0f) }
                     .sortedByDescending { it.second }
                     .take(homeAppLimit)
-                    .map { it.first.packageName }
+                    .map { it.first.toComponentKey() }
                     .toSet()
             } else {
                 emptySet()
             }
 
             apps.filter {
-                it.packageName !in blacklistPackages &&
+                it.toComponentKey() !in blacklistKeys &&
                         !it.isHidden &&
-                        it.packageName !in homePackages
+                        it.toComponentKey() !in homeKeys
             }
-                .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
+                .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
                 .sortedByDescending { it.score }
                 .take(limit)
-        }.distinctUntilChangedBy { list -> list.map { it.packageName } }
+        }.distinctUntilChangedBy { list -> list.map { it.componentKey } }
     }
 
     /**
@@ -166,17 +171,17 @@ class AppRepository @Inject constructor(
             blacklistDao.getAllBlacklist(),
             _sortRefreshTrigger
         ) { apps, blacklist, _ ->
-            val blacklistPackages = blacklist.map { it.packageName }.toSet()
+            val blacklistKeys = blacklist.map { it.toComponentKey() }.toSet()
             val scores = getScores()
 
-            apps.filter { it.packageName !in blacklistPackages && !it.isHidden }
-                .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
+            apps.filter { it.toComponentKey() !in blacklistKeys && !it.isHidden }
+                .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
                 .groupBy { it.firstLetter }
                 .mapValues { (_, group) -> group.sortedByDescending { it.score } }
                 .toSortedMap(compareBy { if (it == "#") "\uFFFF" else it })
         }.distinctUntilChangedBy { map ->
-            // 比较每个分组内的包名顺序
-            map.mapValues { (_, list) -> list.map { it.packageName } }
+            // 比较每个分组内的 componentKey 顺序
+            map.mapValues { (_, list) -> list.map { it.componentKey } }
         }
     }
 
@@ -184,35 +189,37 @@ class AppRepository @Inject constructor(
      * 获取所有应用列表 (用于搜索)
      */
     suspend fun getAllApps(): List<AppInfo> = withContext(Dispatchers.IO) {
-        val blacklistPackages = blacklistDao.getBlacklistPackages().toSet()
+        val blacklistEntities = blacklistDao.getAllBlacklistList()
+        val blacklistKeys = blacklistEntities.map { it.toComponentKey() }.toSet()
         val scores = getScores()
 
         appDao.getAllAppsList()
-            .filter { it.packageName !in blacklistPackages && !it.isHidden }
-            .map { it.toAppInfo(scores[it.packageName] ?: 0f) }
+            .filter { it.toComponentKey() !in blacklistKeys && !it.isHidden }
+            .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
     }
 
     /**
      * 记录应用启动
      * 注意：只更新数据库，不触发排序刷新，排序在页面重新激活时更新
      */
-    suspend fun recordAppLaunch(packageName: String) = withContext(Dispatchers.IO) {
+    suspend fun recordAppLaunch(packageName: String, activityName: String) = withContext(Dispatchers.IO) {
         val today = LocalDate.now().format(dateFormatter)
         val now = System.currentTimeMillis()
 
         // 更新应用最后启动时间
-        appDao.updateLastLaunchTime(packageName, now)
+        appDao.updateLastLaunchTime(packageName, activityName, now)
 
         // 增加今日启动次数
-        dailyStatsDao.incrementLaunchCount(packageName, today)
+        dailyStatsDao.incrementLaunchCount(packageName, activityName, today)
 
         // 不再调用 invalidateScoreCache()，排序在页面重新激活时更新
     }
 
     /**
      * 启动应用
+     * 使用 ComponentName 精确启动指定的 Activity
      */
-    fun launchApp(packageName: String): Boolean {
+    fun launchApp(packageName: String, activityName: String): Boolean {
         // 电话应用特殊处理：打开最近通话记录
         if (isDialerApp(packageName)) {
             if (openRecentCalls()) {
@@ -221,16 +228,27 @@ class AppRepository @Inject constructor(
         }
 
         return try {
-            val intent = packageManager.getLaunchIntentForPackage(packageName)
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                true
-            } else {
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                component = ComponentName(packageName, activityName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            // 回退到 getLaunchIntentForPackage
+            try {
+                val fallbackIntent = packageManager.getLaunchIntentForPackage(packageName)
+                if (fallbackIntent != null) {
+                    fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(fallbackIntent)
+                    true
+                } else {
+                    false
+                }
+            } catch (e2: Exception) {
                 false
             }
-        } catch (e: Exception) {
-            false
         }
     }
 
@@ -339,17 +357,17 @@ class AppRepository @Inject constructor(
     /**
      * 添加到黑名单
      */
-    suspend fun addToBlacklist(packageName: String) = withContext(Dispatchers.IO) {
-        blacklistDao.insert(BlacklistEntity(packageName))
-        appDao.updateHidden(packageName, true)
+    suspend fun addToBlacklist(packageName: String, activityName: String) = withContext(Dispatchers.IO) {
+        blacklistDao.insert(BlacklistEntity(packageName, activityName))
+        appDao.updateHidden(packageName, activityName, true)
     }
 
     /**
      * 从黑名单移除
      */
-    suspend fun removeFromBlacklist(packageName: String) = withContext(Dispatchers.IO) {
-        blacklistDao.delete(packageName)
-        appDao.updateHidden(packageName, false)
+    suspend fun removeFromBlacklist(packageName: String, activityName: String) = withContext(Dispatchers.IO) {
+        blacklistDao.delete(packageName, activityName)
+        appDao.updateHidden(packageName, activityName, false)
     }
 
     /**
@@ -358,61 +376,61 @@ class AppRepository @Inject constructor(
     fun observeBlacklist(): Flow<List<AppInfo>> {
         return blacklistDao.getAllBlacklist().map { blacklist ->
             blacklist.mapNotNull { entity ->
-                appDao.getAppByPackageName(entity.packageName)?.toAppInfo(0f)
+                appDao.getApp(entity.packageName, entity.activityName)?.toAppInfo(0f)
             }
         }
     }
 
     /**
-     * 处理应用安装
+     * 处理应用安装 - 重新扫描该包名下所有 launcher activity
      */
     suspend fun onAppInstalled(packageName: String) = withContext(Dispatchers.IO) {
-        try {
-            val appInfo = packageManager.getApplicationInfo(packageName, 0)
-            val appName = packageManager.getApplicationLabel(appInfo).toString()
-            val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        val installedApps = getInstalledLaunchableApps()
+        val newApps = installedApps.filter { it.packageName == packageName }
 
-            val entity = AppEntity(
-                packageName = packageName,
-                appName = appName,
-                firstLetter = PinyinHelper.getFirstLetter(appName),
-                isSystemApp = isSystemApp
-            )
-            appDao.insert(entity)
-        } catch (e: PackageManager.NameNotFoundException) {
-            // 忽略
+        if (newApps.isNotEmpty()) {
+            appDao.insertAll(newApps.map { it.toEntity() })
         }
     }
 
     /**
-     * 处理应用卸载
+     * 处理应用卸载 - 删除该包名下所有 activity
      */
     suspend fun onAppUninstalled(packageName: String) = withContext(Dispatchers.IO) {
         appDao.deleteByPackageName(packageName)
         dailyStatsDao.deleteStatsByPackage(packageName)
-        blacklistDao.delete(packageName)
     }
 
     /**
-     * 处理应用更新
+     * 处理应用更新 - 重新扫描该包名下所有 launcher activity
      */
     suspend fun onAppUpdated(packageName: String) = withContext(Dispatchers.IO) {
-        try {
-            val appInfo = packageManager.getApplicationInfo(packageName, 0)
-            val appName = packageManager.getApplicationLabel(appInfo).toString()
+        val installedApps = getInstalledLaunchableApps()
+        val updatedApps = installedApps.filter { it.packageName == packageName }
 
-            val existingApp = appDao.getAppByPackageName(packageName)
-            if (existingApp != null) {
-                appDao.update(
-                    existingApp.copy(
-                        appName = appName,
-                        firstLetter = PinyinHelper.getFirstLetter(appName),
-                        updatedAt = System.currentTimeMillis()
-                    )
-                )
+        // 获取现有的 activity
+        val existingKeys = appDao.getAllComponentKeys()
+            .filter { it.packageName == packageName }
+            .map { it.toComponentKey() }
+            .toSet()
+
+        val newKeys = updatedApps.map { it.componentKey }.toSet()
+
+        // 删除不再存在的 activity
+        val removedKeys = existingKeys - newKeys
+        removedKeys.forEach { key ->
+            val (pkg, activity) = key.split("/", limit = 2)
+            appDao.delete(pkg, activity)
+        }
+
+        // 更新或插入 activity
+        updatedApps.forEach { app ->
+            val existing = appDao.getApp(app.packageName, app.activityName)
+            if (existing != null) {
+                appDao.updateAppName(app.packageName, app.activityName, app.appName)
+            } else {
+                appDao.insert(app.toEntity())
             }
-        } catch (e: PackageManager.NameNotFoundException) {
-            // 忽略
         }
     }
 
@@ -450,18 +468,21 @@ class AppRepository @Inject constructor(
         val startDate30d = LocalDate.now().minusDays(30).format(dateFormatter)
         val startDate7d = LocalDate.now().minusDays(7).format(dateFormatter)
 
-        val stats30d = dailyStatsDao.getStatsSince(startDate30d).associate { it.packageName to it.totalCount }
-        val stats7d = dailyStatsDao.getStatsSince(startDate7d).associate { it.packageName to it.totalCount }
-        val lastLaunchTimes = appDao.getAllLastLaunchTimes().associate { it.packageName to it.lastLaunchTime }
+        val stats30d = dailyStatsDao.getStatsSince(startDate30d)
+            .associate { "${it.packageName}/${it.activityName}" to it.totalCount }
+        val stats7d = dailyStatsDao.getStatsSince(startDate7d)
+            .associate { "${it.packageName}/${it.activityName}" to it.totalCount }
+        val lastLaunchTimes = appDao.getAllLastLaunchTimes()
+            .associate { "${it.packageName}/${it.activityName}" to it.lastLaunchTime }
 
         val now = System.currentTimeMillis()
-        val allPackages = (stats30d.keys + stats7d.keys + lastLaunchTimes.keys).distinct()
+        val allKeys = (stats30d.keys + stats7d.keys + lastLaunchTimes.keys).distinct()
 
-        return allPackages.associateWith { pkg ->
+        return allKeys.associateWith { key ->
             calculateScore(
-                count30d = stats30d[pkg] ?: 0,
-                count7d = stats7d[pkg] ?: 0,
-                lastLaunchTime = lastLaunchTimes[pkg] ?: 0L,
+                count30d = stats30d[key] ?: 0,
+                count7d = stats7d[key] ?: 0,
+                lastLaunchTime = lastLaunchTimes[key] ?: 0L,
                 now = now
             )
         }
@@ -491,22 +512,35 @@ class AppRepository @Inject constructor(
     }
 
     /**
-     * 加载应用图标
+     * 加载应用图标 - 使用 ActivityInfo.loadIcon 获取 Activity 专属图标
      */
-    fun loadAppIcon(packageName: String) = try {
-        packageManager.getApplicationIcon(packageName)
+    fun loadAppIcon(packageName: String, activityName: String) = try {
+        val activityInfo = packageManager.getActivityInfo(
+            ComponentName(packageName, activityName),
+            PackageManager.GET_META_DATA
+        )
+        activityInfo.loadIcon(packageManager)
     } catch (e: Exception) {
-        null
+        // 回退到应用图标
+        try {
+            packageManager.getApplicationIcon(packageName)
+        } catch (e2: Exception) {
+            null
+        }
     }
 
     private data class InstalledApp(
         val packageName: String,
+        val activityName: String,
         val appName: String,
         val isSystemApp: Boolean
-    )
+    ) {
+        val componentKey: String get() = "$packageName/$activityName"
+    }
 
     private fun InstalledApp.toEntity() = AppEntity(
         packageName = packageName,
+        activityName = activityName,
         appName = appName,
         firstLetter = PinyinHelper.getFirstLetter(appName),
         isSystemApp = isSystemApp
@@ -514,6 +548,7 @@ class AppRepository @Inject constructor(
 
     private fun AppEntity.toAppInfo(score: Float) = AppInfo(
         packageName = packageName,
+        activityName = activityName,
         displayName = customName ?: appName,
         launchCount30d = 0,
         score = score,
@@ -523,4 +558,13 @@ class AppRepository @Inject constructor(
         homePosition = homePosition,
         lastLaunchTime = lastLaunchTime
     )
+
+    private fun AppEntity.toComponentKey() = "$packageName/$activityName"
+
+    private fun BlacklistEntity.toComponentKey() = "$packageName/$activityName"
+
+    private fun cn.whc.launcher.data.dao.ComponentKey.toComponentKey() = "$packageName/$activityName"
 }
+
+// AppInfo 扩展属性
+val AppInfo.componentKey: String get() = "$packageName/$activityName"

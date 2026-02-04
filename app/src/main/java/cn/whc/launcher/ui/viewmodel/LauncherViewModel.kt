@@ -111,12 +111,12 @@ class LauncherViewModel @Inject constructor(
     /**
      * 启动应用
      */
-    fun launchApp(packageName: String) {
+    fun launchApp(packageName: String, activityName: String) {
         // 先启动应用，确保响应即时
-        appRepository.launchApp(packageName)
+        appRepository.launchApp(packageName, activityName)
         // 异步记录启动统计，不阻塞用户操作
         viewModelScope.launch {
-            appRepository.recordAppLaunch(packageName)
+            appRepository.recordAppLaunch(packageName, activityName)
         }
     }
 
@@ -167,18 +167,18 @@ class LauncherViewModel @Inject constructor(
     /**
      * 添加到黑名单
      */
-    fun addToBlacklist(packageName: String) {
+    fun addToBlacklist(packageName: String, activityName: String) {
         viewModelScope.launch {
-            appRepository.addToBlacklist(packageName)
+            appRepository.addToBlacklist(packageName, activityName)
         }
     }
 
     /**
      * 从黑名单移除
      */
-    fun removeFromBlacklist(packageName: String) {
+    fun removeFromBlacklist(packageName: String, activityName: String) {
         viewModelScope.launch {
-            appRepository.removeFromBlacklist(packageName)
+            appRepository.removeFromBlacklist(packageName, activityName)
         }
     }
 

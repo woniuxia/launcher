@@ -15,7 +15,7 @@ import cn.whc.launcher.data.entity.DailyStatEntity
         DailyStatEntity::class,
         BlacklistEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class LauncherDatabase : RoomDatabase() {

@@ -1,5 +1,7 @@
 package cn.whc.launcher.ui.components
 
+import android.content.ComponentName
+import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.LayoutSettings
+import cn.whc.launcher.data.repository.componentKey
 import cn.whc.launcher.ui.theme.BorderLight
 import cn.whc.launcher.ui.theme.ShadowColor
 import cn.whc.launcher.ui.theme.ShadowColorLight
@@ -72,7 +75,7 @@ fun AppGrid(
     ) {
         items(
             items = apps,
-            key = { it.packageName }
+            key = { it.componentKey }
         ) { app ->
             AppGridItem(
                 app = app,
@@ -102,14 +105,23 @@ fun AppGridItem(
     val context = LocalContext.current
     var isPressed by remember { mutableStateOf(false) }
 
-    // 异步加载图标
-    var icon by remember(app.packageName) { mutableStateOf<Drawable?>(null) }
-    LaunchedEffect(app.packageName) {
+    // 异步加载图标 - 使用 ActivityInfo.loadIcon 获取 Activity 专属图标
+    var icon by remember(app.componentKey) { mutableStateOf<Drawable?>(null) }
+    LaunchedEffect(app.componentKey) {
         icon = withContext(Dispatchers.IO) {
             try {
-                context.packageManager.getApplicationIcon(app.packageName)
+                val activityInfo = context.packageManager.getActivityInfo(
+                    ComponentName(app.packageName, app.activityName),
+                    PackageManager.GET_META_DATA
+                )
+                activityInfo.loadIcon(context.packageManager)
             } catch (e: Exception) {
-                null
+                // 回退到应用图标
+                try {
+                    context.packageManager.getApplicationIcon(app.packageName)
+                } catch (e2: Exception) {
+                    null
+                }
             }
         }
     }
