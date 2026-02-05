@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.ui.components.FloatingSearchButton
 import cn.whc.launcher.ui.components.WallpaperBackground
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
@@ -132,10 +133,14 @@ fun LauncherContent(
                 .fillMaxSize()
                 .alpha(contentAlpha),
             beyondViewportPageCount = 1,
-            // 降低滑动切换阈值，从默认的 0.5 改为 0.2（滑动 20% 屏幕高度即可切换）
+            // 根据用户设置的灵敏度调整滑动切换阈值
             flingBehavior = PagerDefaults.flingBehavior(
                 state = pagerState,
-                snapPositionalThreshold = 0.2f
+                snapPositionalThreshold = when (settings.gesture.swipeSensitivity) {
+                    SwipeSensitivity.LOW -> 0.25f    // 需滑动 25% 屏幕高度
+                    SwipeSensitivity.MEDIUM -> 0.12f // 需滑动 12% 屏幕高度
+                    SwipeSensitivity.HIGH -> 0.04f   // 需滑动 4% 屏幕高度
+                }
             )
         ) { page ->
             when (page) {

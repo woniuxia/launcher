@@ -6,7 +6,6 @@ import android.graphics.drawable.Drawable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -32,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
@@ -138,14 +136,6 @@ fun AppGridItem(
 
     val shape = RoundedCornerShape(iconRadius.dp)
 
-    // 图标容器渐变背景
-    val glassGradient = Brush.verticalGradient(
-        colors = listOf(
-            Color.White.copy(alpha = 0.12f),
-            Color.White.copy(alpha = 0.05f)
-        )
-    )
-
     Column(
         modifier = modifier
             .graphicsLayer {
@@ -182,7 +172,6 @@ fun AppGridItem(
                     } else Modifier
                 )
                 .clip(shape)
-                .background(glassGradient)
                 .border(
                     width = 0.5.dp,
                     color = BorderLight,
