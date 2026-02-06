@@ -47,9 +47,9 @@ class AppRepository @Inject constructor(
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
     // 评分缓存 - 使用 componentKey (packageName/activityName) 作为键
+    // 仅在 triggerSortRefresh() 调用时刷新，不使用时间过期机制
     private var cachedScores: Map<String, Float> = emptyMap()
-    private var lastScoreUpdateTime: Long = 0
-    private val scoreExpirationMs: Long = 5 * 60 * 1000 // 5分钟
+    private var scoreCacheInvalid: Boolean = true  // 标记缓存是否需要刷新
 
     // 排序刷新触发器：只有触发时才重新计算排序
     private val _sortRefreshTrigger = MutableStateFlow(0L)
@@ -141,10 +141,10 @@ class AppRepository @Inject constructor(
             appDao.delete(pkg, activity)
         }
 
-        // 预热评分缓存
+        // 预热评分缓存（首次启动时）
         if (cachedScores.isEmpty()) {
             cachedScores = calculateAllScores()
-            lastScoreUpdateTime = System.currentTimeMillis()
+            scoreCacheInvalid = false
         }
     }
 
@@ -612,21 +612,21 @@ class AppRepository @Inject constructor(
 
     /**
      * 获取评分缓存
+     * 仅在缓存被显式失效时重新计算，避免排序抖动
      */
     private suspend fun getScores(): Map<String, Float> {
-        val now = System.currentTimeMillis()
-        if (now - lastScoreUpdateTime > scoreExpirationMs || cachedScores.isEmpty()) {
+        if (scoreCacheInvalid || cachedScores.isEmpty()) {
             cachedScores = calculateAllScores()
-            lastScoreUpdateTime = now
+            scoreCacheInvalid = false
         }
         return cachedScores
     }
 
     /**
-     * 使评分缓存失效
+     * 使评分缓存失效（由 triggerSortRefresh 调用）
      */
     private fun invalidateScoreCache() {
-        lastScoreUpdateTime = 0
+        scoreCacheInvalid = true
     }
 
     /**
