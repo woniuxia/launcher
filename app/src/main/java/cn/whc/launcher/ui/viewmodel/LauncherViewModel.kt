@@ -109,17 +109,22 @@ class LauncherViewModel @Inject constructor(
     private var autoDismissJob: Job? = null
 
     init {
-        // 冷启动优化：先用历史数据显示，后台同步最新数据
+        // 冷启动优化：优先加载悬浮应用，再显示首页
         viewModelScope.launch {
             val hasHistory = appRepository.hasHistoryData()
 
             if (hasHistory) {
-                // 有历史数据：立即标记首页就绪，后台同步
+                // 有历史数据：优先加载悬浮应用，确保首页显示时悬浮窗已就绪
+                val recommendations = appRepository.getTimeBasedRecommendations()
+                if (recommendations.isNotEmpty()) {
+                    _timeBasedRecommendations.value = recommendations
+                    _showTimeRecommendation.value = true
+                    startAutoDismissTimer()
+                }
+                // 悬浮应用就绪后，标记首页就绪
                 _isHomeDataReady.value = true
                 // 后台同步最新数据（不阻塞 UI）
                 appRepository.syncInstalledApps()
-                // 冷启动时加载时间段推荐
-                loadTimeBasedRecommendations()
             } else {
                 // 首次启动：必须等待同步完成
                 appRepository.syncInstalledApps()
