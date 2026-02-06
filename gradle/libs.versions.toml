@@ -30,6 +30,9 @@ pinyin4j = "2.5.1"
 # Serialization
 kotlinxSerialization = "1.10.0"
 
+# SplashScreen
+splashscreen = "1.0.1"
+
 # Test
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -84,6 +87,9 @@ pinyin4j = { group = "com.belerweb", name = "pinyin4j", version.ref = "pinyin4j"
 
 # Kotlinx Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# SplashScreen
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 
 # Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }

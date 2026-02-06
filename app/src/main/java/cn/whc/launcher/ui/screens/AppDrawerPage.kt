@@ -126,10 +126,10 @@ fun AppDrawerPage(
                     key = { item ->
                         when (item) {
                             is DrawerListItem.FrequentHeader -> "frequent_header"
-                            is DrawerListItem.FrequentApp -> "frequent_${item.app.packageName}"
+                            is DrawerListItem.FrequentApp -> "frequent_${item.app.componentKey}"
                             is DrawerListItem.Divider -> "divider"
                             is DrawerListItem.LetterHeader -> "header_${item.letter}"
-                            is DrawerListItem.App -> "app_${item.app.packageName}"
+                            is DrawerListItem.App -> "app_${item.app.componentKey}"
                             is DrawerListItem.SettingsItem -> "settings"
                         }
                     }

@@ -49,10 +49,10 @@ fun LauncherContent(
     val searchResults by viewModel.searchResults.collectAsState()
     val isDataReady by viewModel.isDataReady.collectAsState()
 
-    // 淡入动画：数据就绪后从 0 到 1
+    // 内容淡入动画
     val contentAlpha by animateFloatAsState(
         targetValue = if (isDataReady) 1f else 0f,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = tween(durationMillis = 300),
         label = "contentAlpha"
     )
 
@@ -126,12 +126,10 @@ fun LauncherContent(
             blurRadius = settings.appearance.blurStrength
         )
 
-        // 页面内容（带淡入动画）
+        // 页面内容
         VerticalPager(
             state = pagerState,
-            modifier = Modifier
-                .fillMaxSize()
-                .alpha(contentAlpha),
+            modifier = Modifier.fillMaxSize(),
             beyondViewportPageCount = 1,
             // 根据用户设置的灵敏度调整滑动切换阈值
             flingBehavior = PagerDefaults.flingBehavior(
@@ -144,43 +142,49 @@ fun LauncherContent(
             )
         ) { page ->
             when (page) {
-                0 -> HomePage(
-                    homeApps = homeApps,
-                    availableLetters = availableLetters,
-                    settings = settings,
-                    onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
-                    onClockClick = { viewModel.openClock() },
-                    onLetterSelected = { letter ->
-                        drawerLetterPositions[letter]?.let { position ->
+                0 -> {
+                    HomePage(
+                        homeApps = homeApps,
+                        availableLetters = availableLetters,
+                        settings = settings,
+                        onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
+                        onClockClick = { viewModel.openClock() },
+                        onLetterSelected = { letter ->
+                            drawerLetterPositions[letter]?.let { position ->
+                                coroutineScope.launch {
+                                    isLetterNavigation = true
+                                    // 直接跳转到抽屉页
+                                    pagerState.scrollToPage(1)
+                                    // 直接定位到对应位置，偏移1/3屏幕高度使其显示在2/3处
+                                    val offset = -(drawerListState.layoutInfo.viewportSize.height / 3)
+                                    drawerListState.scrollToItem(position, offset)
+                                }
+                            }
+                        },
+                        showFavorites = frequentApps.isNotEmpty(),
+                        onFavoritesClick = {
                             coroutineScope.launch {
                                 isLetterNavigation = true
-                                // 直接跳转到抽屉页
+                                // 直接跳转到抽屉页并定位到顶部（常用区）
                                 pagerState.scrollToPage(1)
-                                // 直接定位到对应位置，偏移1/3屏幕高度使其显示在2/3处
-                                val offset = -(drawerListState.layoutInfo.viewportSize.height / 3)
-                                drawerListState.scrollToItem(position, offset)
+                                drawerListState.scrollToItem(0)
                             }
-                        }
-                    },
-                    showFavorites = frequentApps.isNotEmpty(),
-                    onFavoritesClick = {
-                        coroutineScope.launch {
-                            isLetterNavigation = true
-                            // 直接跳转到抽屉页并定位到顶部（常用区）
-                            pagerState.scrollToPage(1)
-                            drawerListState.scrollToItem(0)
-                        }
-                    },
-                    onSettingsClick = onNavigateToSettings
-                )
-                1 -> AppDrawerPage(
-                    frequentApps = frequentApps,
-                    allAppsGrouped = allAppsGrouped,
-                    settings = settings,
-                    listState = drawerListState,
-                    onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
-                    onSettingsClick = onNavigateToSettings
-                )
+                        },
+                        onSettingsClick = onNavigateToSettings,
+                        modifier = Modifier.alpha(contentAlpha)
+                    )
+                }
+                1 -> {
+                    AppDrawerPage(
+                        frequentApps = frequentApps,
+                        allAppsGrouped = allAppsGrouped,
+                        settings = settings,
+                        listState = drawerListState,
+                        onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
+                        onSettingsClick = onNavigateToSettings,
+                        modifier = Modifier.alpha(contentAlpha)
+                    )
+                }
             }
         }
 

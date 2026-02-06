@@ -16,7 +16,10 @@ data class AppInfo(
     val isHidden: Boolean = false,
     val homePosition: Int = -1,
     val lastLaunchTime: Long = 0
-)
+) {
+    /** 唯一标识：packageName/activityName */
+    val componentKey: String get() = "$packageName/$activityName"
+}
 
 /**
  * 按字母分组的应用列表项

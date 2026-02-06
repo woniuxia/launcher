@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -78,6 +79,10 @@ class LauncherViewModel @Inject constructor(
     private val _isDataReady = MutableStateFlow(false)
     val isDataReady: StateFlow<Boolean> = _isDataReady.asStateFlow()
 
+    // 首页数据是否就绪（用于 SplashScreen 控制）
+    private val _isHomeDataReady = MutableStateFlow(false)
+    val isHomeDataReady: StateFlow<Boolean> = _isHomeDataReady.asStateFlow()
+
     // 搜索相关状态
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -93,12 +98,27 @@ class LauncherViewModel @Inject constructor(
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
 
     init {
-        // 同步已安装应用
+        // 冷启动优化：先用历史数据显示，后台同步最新数据
         viewModelScope.launch {
-            appRepository.syncInstalledApps()
+            val hasHistory = appRepository.hasHistoryData()
+
+            if (hasHistory) {
+                // 有历史数据：立即标记首页就绪，后台同步
+                _isHomeDataReady.value = true
+                // 后台同步最新数据（不阻塞 UI）
+                appRepository.syncInstalledApps()
+            } else {
+                // 首次启动：必须等待同步完成
+                appRepository.syncInstalledApps()
+                // 等待首页数据就绪
+                homeApps.first { apps ->
+                    apps.isNotEmpty() || settings.value.layout.homeDisplayCount == 0
+                }
+                _isHomeDataReady.value = true
+            }
         }
 
-        // 监听数据就绪状态（allAppsGrouped 有数据时标记就绪）
+        // 监听全部数据就绪状态（allAppsGrouped 有数据时标记就绪）
         viewModelScope.launch {
             allAppsGrouped.collect { apps ->
                 if (apps.isNotEmpty() && !_isDataReady.value) {

@@ -30,7 +30,7 @@
             android:screenOrientation="nosensor"
             android:excludeFromRecents="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.Launcher">
+            android:theme="@style/Theme.Launcher.Starting">
 
             <!-- 普通应用入口 -->
             <intent-filter>

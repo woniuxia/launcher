@@ -55,6 +55,13 @@ class AppRepository @Inject constructor(
     }
 
     /**
+     * 检查数据库是否有历史数据
+     */
+    suspend fun hasHistoryData(): Boolean = withContext(Dispatchers.IO) {
+        appDao.getAppCount() > 0
+    }
+
+    /**
      * 扫描并同步已安装应用到数据库
      */
     suspend fun syncInstalledApps() = withContext(Dispatchers.IO) {
