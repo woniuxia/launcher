@@ -10,8 +10,10 @@ import android.provider.CallLog
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
+import cn.whc.launcher.data.dao.LaunchTimeDao
 import cn.whc.launcher.data.entity.AppEntity
 import cn.whc.launcher.data.entity.BlacklistEntity
+import cn.whc.launcher.data.entity.LaunchTimeEntity
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.util.PinyinHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.pow
@@ -33,7 +36,8 @@ class AppRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val appDao: AppDao,
     private val dailyStatsDao: DailyStatsDao,
-    private val blacklistDao: BlacklistDao
+    private val blacklistDao: BlacklistDao,
+    private val launchTimeDao: LaunchTimeDao
 ) {
     private val packageManager: PackageManager = context.packageManager
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -219,7 +223,94 @@ class AppRepository @Inject constructor(
         // 增加今日启动次数
         dailyStatsDao.incrementLaunchCount(packageName, activityName, today)
 
-        // 不再调用 invalidateScoreCache()，排序在页面重新激活时更新
+        // 记录精确启动时间
+        recordLaunchTime(packageName, activityName, now)
+    }
+
+    /**
+     * 记录启动时间到 launch_time_records 表
+     */
+    private suspend fun recordLaunchTime(packageName: String, activityName: String, timestamp: Long) {
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = timestamp
+        }
+        val timeOfDayMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+
+        launchTimeDao.insert(
+            LaunchTimeEntity(
+                packageName = packageName,
+                activityName = activityName,
+                launchTimestamp = timestamp,
+                timeOfDayMinutes = timeOfDayMinutes
+            )
+        )
+    }
+
+    /**
+     * 获取时间段推荐应用 (Top 3)
+     * 算法: 当前时间 +-30分钟窗口内启动次数最多的应用，不足3个用频率排序补充
+     */
+    suspend fun getTimeBasedRecommendations(): List<AppInfo> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val calendar = Calendar.getInstance()
+        val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+
+        // 计算时间窗口: 当前时间 +-30分钟
+        val windowSize = 30
+        val startMinutes = (currentMinutes - windowSize + 1440) % 1440
+        val endMinutes = (currentMinutes + windowSize) % 1440
+
+        // 30天前的时间戳
+        val cutoffTimestamp = now - 30L * 24 * 60 * 60 * 1000
+
+        // 判断是否跨天
+        val isCrossDay = startMinutes > endMinutes
+
+        // 查询时间窗口内的统计
+        val timeWindowStats = if (isCrossDay) {
+            launchTimeDao.getTimeWindowStatsCrossDay(startMinutes, endMinutes, cutoffTimestamp)
+        } else {
+            launchTimeDao.getTimeWindowStats(startMinutes, endMinutes, cutoffTimestamp)
+        }
+
+        // 获取黑名单
+        val blacklistKeys = blacklistDao.getAllBlacklistList()
+            .map { it.toComponentKey() }
+            .toSet()
+
+        // 过滤黑名单和隐藏应用，取 Top 3
+        val timeBasedApps = timeWindowStats
+            .filter { stat ->
+                val key = "${stat.packageName}/${stat.activityName}"
+                key !in blacklistKeys
+            }
+            .take(3)
+            .mapNotNull { stat ->
+                appDao.getApp(stat.packageName, stat.activityName)
+                    ?.takeIf { !it.isHidden }
+                    ?.toAppInfo(stat.launchCount.toFloat())
+            }
+
+        // 如果不足3个，用频率排序补充
+        if (timeBasedApps.size < 3) {
+            val existingKeys = timeBasedApps.map { it.componentKey }.toSet()
+            val scores = getScores()
+
+            val supplementApps = appDao.getAllAppsList()
+                .filter { app ->
+                    val key = app.toComponentKey()
+                    key !in blacklistKeys &&
+                            key !in existingKeys &&
+                            !app.isHidden
+                }
+                .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
+                .sortedByDescending { it.score }
+                .take(3 - timeBasedApps.size)
+
+            return@withContext timeBasedApps + supplementApps
+        }
+
+        timeBasedApps
     }
 
     /**
@@ -446,7 +537,10 @@ class AppRepository @Inject constructor(
      */
     suspend fun cleanupOldStats() = withContext(Dispatchers.IO) {
         val cutoffDate = LocalDate.now().minusDays(30).format(dateFormatter)
+        val cutoffTimestamp = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+
         dailyStatsDao.deleteOldStats(cutoffDate)
+        launchTimeDao.deleteOldRecords(cutoffTimestamp)
     }
 
     /**

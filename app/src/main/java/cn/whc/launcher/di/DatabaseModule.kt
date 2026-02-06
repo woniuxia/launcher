@@ -2,9 +2,12 @@ package cn.whc.launcher.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
+import cn.whc.launcher.data.dao.LaunchTimeDao
 import cn.whc.launcher.data.database.LauncherDatabase
 import dagger.Module
 import dagger.Provides
@@ -17,6 +20,26 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
 
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS launch_time_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    package_name TEXT NOT NULL,
+                    activity_name TEXT NOT NULL,
+                    launch_timestamp INTEGER NOT NULL,
+                    time_of_day_minutes INTEGER NOT NULL,
+                    FOREIGN KEY (package_name, activity_name)
+                        REFERENCES apps(package_name, activity_name)
+                        ON DELETE CASCADE
+                )
+            """)
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_launch_time_records_time_window ON launch_time_records(time_of_day_minutes, launch_timestamp)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_launch_time_records_component ON launch_time_records(package_name, activity_name)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_launch_time_records_timestamp ON launch_time_records(launch_timestamp)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LauncherDatabase {
@@ -25,6 +48,7 @@ object DatabaseModule {
             LauncherDatabase::class.java,
             LauncherDatabase.DATABASE_NAME
         )
+            .addMigrations(MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -45,5 +69,11 @@ object DatabaseModule {
     @Singleton
     fun provideBlacklistDao(database: LauncherDatabase): BlacklistDao {
         return database.blacklistDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideLaunchTimeDao(database: LauncherDatabase): LaunchTimeDao {
+        return database.launchTimeDao()
     }
 }

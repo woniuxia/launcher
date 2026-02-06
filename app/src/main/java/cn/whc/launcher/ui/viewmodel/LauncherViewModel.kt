@@ -14,6 +14,8 @@ import cn.whc.launcher.data.repository.SettingsRepository
 import cn.whc.launcher.util.SearchHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -97,6 +99,15 @@ class LauncherViewModel @Inject constructor(
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
 
+    // 时间段推荐相关状态
+    private val _timeBasedRecommendations = MutableStateFlow<List<AppInfo>>(emptyList())
+    val timeBasedRecommendations: StateFlow<List<AppInfo>> = _timeBasedRecommendations.asStateFlow()
+
+    private val _showTimeRecommendation = MutableStateFlow(false)
+    val showTimeRecommendation: StateFlow<Boolean> = _showTimeRecommendation.asStateFlow()
+
+    private var autoDismissJob: Job? = null
+
     init {
         // 冷启动优化：先用历史数据显示，后台同步最新数据
         viewModelScope.launch {
@@ -107,6 +118,8 @@ class LauncherViewModel @Inject constructor(
                 _isHomeDataReady.value = true
                 // 后台同步最新数据（不阻塞 UI）
                 appRepository.syncInstalledApps()
+                // 冷启动时加载时间段推荐
+                loadTimeBasedRecommendations()
             } else {
                 // 首次启动：必须等待同步完成
                 appRepository.syncInstalledApps()
@@ -288,5 +301,46 @@ class LauncherViewModel @Inject constructor(
      */
     fun refreshAppSort() {
         appRepository.triggerSortRefresh()
+    }
+
+    /**
+     * 加载时间段推荐应用
+     */
+    private fun loadTimeBasedRecommendations() {
+        viewModelScope.launch {
+            val recommendations = appRepository.getTimeBasedRecommendations()
+            if (recommendations.isNotEmpty()) {
+                _timeBasedRecommendations.value = recommendations
+                _showTimeRecommendation.value = true
+                startAutoDismissTimer()
+            }
+        }
+    }
+
+    /**
+     * 启动自动关闭计时器 (3秒)
+     */
+    private fun startAutoDismissTimer() {
+        autoDismissJob?.cancel()
+        autoDismissJob = viewModelScope.launch {
+            delay(3000L)
+            _showTimeRecommendation.value = false
+        }
+    }
+
+    /**
+     * 关闭时间段推荐
+     */
+    fun dismissTimeRecommendation() {
+        autoDismissJob?.cancel()
+        _showTimeRecommendation.value = false
+    }
+
+    /**
+     * 从时间段推荐启动应用
+     */
+    fun launchRecommendedApp(app: AppInfo) {
+        dismissTimeRecommendation()
+        launchApp(app.packageName, app.activityName)
     }
 }

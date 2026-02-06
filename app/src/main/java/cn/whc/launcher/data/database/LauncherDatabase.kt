@@ -5,23 +5,27 @@ import androidx.room.RoomDatabase
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
+import cn.whc.launcher.data.dao.LaunchTimeDao
 import cn.whc.launcher.data.entity.AppEntity
 import cn.whc.launcher.data.entity.BlacklistEntity
 import cn.whc.launcher.data.entity.DailyStatEntity
+import cn.whc.launcher.data.entity.LaunchTimeEntity
 
 @Database(
     entities = [
         AppEntity::class,
         DailyStatEntity::class,
-        BlacklistEntity::class
+        BlacklistEntity::class,
+        LaunchTimeEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class LauncherDatabase : RoomDatabase() {
     abstract fun appDao(): AppDao
     abstract fun dailyStatsDao(): DailyStatsDao
     abstract fun blacklistDao(): BlacklistDao
+    abstract fun launchTimeDao(): LaunchTimeDao
 
     companion object {
         const val DATABASE_NAME = "launcher_db"

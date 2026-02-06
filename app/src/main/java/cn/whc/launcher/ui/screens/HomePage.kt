@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.whc.launcher.data.model.AppInfo
@@ -24,6 +25,7 @@ import cn.whc.launcher.data.model.AppSettings
 import cn.whc.launcher.ui.components.AlphabetIndexBar
 import cn.whc.launcher.ui.components.AppGrid
 import cn.whc.launcher.ui.components.ClockWidget
+import cn.whc.launcher.ui.components.TimeBasedRecommendation
 
 /**
  * 首页屏幕
@@ -39,6 +41,9 @@ fun HomePage(
     showFavorites: Boolean = false,
     onFavoritesClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null,
+    showTimeRecommendation: Boolean = false,
+    timeRecommendations: List<AppInfo> = emptyList(),
+    onRecommendedAppClick: (AppInfo) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -98,5 +103,16 @@ fun HomePage(
                 )
             }
         }
+
+        // 时间段推荐悬浮组件 (中心点在屏幕下方1/3处)
+        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+        TimeBasedRecommendation(
+            visible = showTimeRecommendation,
+            recommendations = timeRecommendations,
+            onAppClick = onRecommendedAppClick,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 48.dp, top = screenHeight * 2 / 3)
+        )
     }
 }

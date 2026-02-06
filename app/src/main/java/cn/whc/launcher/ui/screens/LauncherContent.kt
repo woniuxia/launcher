@@ -48,6 +48,8 @@ fun LauncherContent(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val isDataReady by viewModel.isDataReady.collectAsState()
+    val showTimeRecommendation by viewModel.showTimeRecommendation.collectAsState()
+    val timeBasedRecommendations by viewModel.timeBasedRecommendations.collectAsState()
 
     // 内容淡入动画
     val contentAlpha by animateFloatAsState(
@@ -171,6 +173,9 @@ fun LauncherContent(
                             }
                         },
                         onSettingsClick = onNavigateToSettings,
+                        showTimeRecommendation = showTimeRecommendation,
+                        timeRecommendations = timeBasedRecommendations,
+                        onRecommendedAppClick = { viewModel.launchRecommendedApp(it) },
                         modifier = Modifier.alpha(contentAlpha)
                     )
                 }
