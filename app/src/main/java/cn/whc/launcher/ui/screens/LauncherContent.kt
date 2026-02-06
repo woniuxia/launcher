@@ -50,6 +50,7 @@ fun LauncherContent(
     val isDataReady by viewModel.isDataReady.collectAsState()
     val showTimeRecommendation by viewModel.showTimeRecommendation.collectAsState()
     val timeBasedRecommendations by viewModel.timeBasedRecommendations.collectAsState()
+    val fabPosition by viewModel.fabPosition.collectAsState()
 
     // 内容淡入动画
     val contentAlpha by animateFloatAsState(
@@ -176,6 +177,9 @@ fun LauncherContent(
                         showTimeRecommendation = showTimeRecommendation,
                         timeRecommendations = timeBasedRecommendations,
                         onRecommendedAppClick = { viewModel.launchRecommendedApp(it) },
+                        fabOffsetX = fabPosition.first,
+                        fabOffsetY = fabPosition.second,
+                        onFabPositionChanged = { x, y -> viewModel.updateFabPosition(x, y) },
                         modifier = Modifier.alpha(contentAlpha)
                     )
                 }

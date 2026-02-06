@@ -17,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.whc.launcher.data.model.AppInfo
@@ -44,6 +43,9 @@ fun HomePage(
     showTimeRecommendation: Boolean = false,
     timeRecommendations: List<AppInfo> = emptyList(),
     onRecommendedAppClick: (AppInfo) -> Unit = {},
+    fabOffsetX: Float = 0f,
+    fabOffsetY: Float = 0f,
+    onFabPositionChanged: (Float, Float) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -104,15 +106,17 @@ fun HomePage(
             }
         }
 
-        // 时间段推荐悬浮组件 (中心点在屏幕下方1/3处)
-        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+        // 时间段推荐悬浮组件 (可拖动)
         TimeBasedRecommendation(
             visible = showTimeRecommendation,
             recommendations = timeRecommendations,
             onAppClick = onRecommendedAppClick,
+            fabOffsetX = fabOffsetX,
+            fabOffsetY = fabOffsetY,
+            onPositionChanged = onFabPositionChanged,
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 48.dp, top = screenHeight * 2 / 3)
+                .align(Alignment.BottomEnd)
+                .padding(end = 48.dp, bottom = 100.dp)
         )
     }
 }

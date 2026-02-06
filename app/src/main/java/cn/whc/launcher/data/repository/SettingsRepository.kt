@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -65,6 +66,10 @@ class SettingsRepository @Inject constructor(
     // === Gesture Keys ===
     private val SWIPE_SENSITIVITY_KEY = stringPreferencesKey("gesture_swipe_sensitivity")
     private val HAPTIC_FEEDBACK_KEY = booleanPreferencesKey("gesture_haptic_feedback")
+
+    // === FAB Position Keys ===
+    private val FAB_OFFSET_X_KEY = floatPreferencesKey("fab_offset_x")
+    private val FAB_OFFSET_Y_KEY = floatPreferencesKey("fab_offset_y")
 
     val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
         AppSettings(
@@ -155,6 +160,21 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs[SWIPE_SENSITIVITY_KEY] = gesture.swipeSensitivity.name
             prefs[HAPTIC_FEEDBACK_KEY] = gesture.hapticFeedback
+        }
+    }
+
+    // === FAB Position ===
+    val fabPosition: Flow<Pair<Float, Float>> = dataStore.data.map { prefs ->
+        Pair(
+            prefs[FAB_OFFSET_X_KEY] ?: 0f,
+            prefs[FAB_OFFSET_Y_KEY] ?: 0f
+        )
+    }
+
+    suspend fun updateFabPosition(offsetX: Float, offsetY: Float) {
+        dataStore.edit { prefs ->
+            prefs[FAB_OFFSET_X_KEY] = offsetX
+            prefs[FAB_OFFSET_Y_KEY] = offsetY
         }
     }
 

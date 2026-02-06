@@ -106,6 +106,10 @@ class LauncherViewModel @Inject constructor(
     private val _showTimeRecommendation = MutableStateFlow(false)
     val showTimeRecommendation: StateFlow<Boolean> = _showTimeRecommendation.asStateFlow()
 
+    // FAB 位置状态
+    val fabPosition: StateFlow<Pair<Float, Float>> = settingsRepository.fabPosition
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Pair(0f, 0f))
+
     private var autoDismissJob: Job? = null
 
     init {
@@ -323,14 +327,10 @@ class LauncherViewModel @Inject constructor(
     }
 
     /**
-     * 启动自动关闭计时器 (3秒)
+     * 启动自动关闭计时器 (已移至组件内部处理)
      */
     private fun startAutoDismissTimer() {
-        autoDismissJob?.cancel()
-        autoDismissJob = viewModelScope.launch {
-            delay(3000L)
-            _showTimeRecommendation.value = false
-        }
+        // 组件内部已有收起动画逻辑，这里不再隐藏
     }
 
     /**
@@ -347,5 +347,14 @@ class LauncherViewModel @Inject constructor(
     fun launchRecommendedApp(app: AppInfo) {
         dismissTimeRecommendation()
         launchApp(app.packageName, app.activityName)
+    }
+
+    /**
+     * 更新 FAB 位置
+     */
+    fun updateFabPosition(offsetX: Float, offsetY: Float) {
+        viewModelScope.launch {
+            settingsRepository.updateFabPosition(offsetX, offsetY)
+        }
     }
 }

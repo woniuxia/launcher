@@ -247,8 +247,8 @@ class AppRepository @Inject constructor(
     }
 
     /**
-     * 获取时间段推荐应用 (Top 3)
-     * 算法: 当前时间 +-30分钟窗口内启动次数最多的应用，不足3个用频率排序补充
+     * 获取时间段推荐应用 (Top 5)
+     * 算法: 当前时间 +-30分钟窗口内启动次数最多的应用，不足5个用频率排序补充
      */
     suspend fun getTimeBasedRecommendations(): List<AppInfo> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
@@ -278,21 +278,21 @@ class AppRepository @Inject constructor(
             .map { it.toComponentKey() }
             .toSet()
 
-        // 过滤黑名单和隐藏应用，取 Top 3
+        // 过滤黑名单和隐藏应用，取 Top 5
         val timeBasedApps = timeWindowStats
             .filter { stat ->
                 val key = "${stat.packageName}/${stat.activityName}"
                 key !in blacklistKeys
             }
-            .take(3)
+            .take(5)
             .mapNotNull { stat ->
                 appDao.getApp(stat.packageName, stat.activityName)
                     ?.takeIf { !it.isHidden }
                     ?.toAppInfo(stat.launchCount.toFloat())
             }
 
-        // 如果不足3个，用频率排序补充
-        if (timeBasedApps.size < 3) {
+        // 如果不足5个，用频率排序补充
+        if (timeBasedApps.size < 5) {
             val existingKeys = timeBasedApps.map { it.componentKey }.toSet()
             val scores = getScores()
 
@@ -305,7 +305,7 @@ class AppRepository @Inject constructor(
                 }
                 .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
                 .sortedByDescending { it.score }
-                .take(3 - timeBasedApps.size)
+                .take(5 - timeBasedApps.size)
 
             return@withContext timeBasedApps + supplementApps
         }
