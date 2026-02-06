@@ -1,8 +1,6 @@
 package cn.whc.launcher.ui.components
 
-import android.content.ComponentName
-import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
+import android.graphics.Bitmap
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
@@ -37,21 +35,18 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.LayoutSettings
 import cn.whc.launcher.data.repository.componentKey
 import cn.whc.launcher.ui.theme.BorderLight
 import cn.whc.launcher.ui.theme.ShadowColor
 import cn.whc.launcher.ui.theme.ShadowColorLight
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import cn.whc.launcher.util.IconCache
 
 /**
  * 应用图标网格组件 - Material You 风格
@@ -62,6 +57,7 @@ fun AppGrid(
     layoutSettings: LayoutSettings,
     showShadow: Boolean,
     iconRadius: Int,
+    iconCache: IconCache,
     onAppClick: (AppInfo) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -81,6 +77,7 @@ fun AppGrid(
                 textSize = layoutSettings.textSize,
                 showShadow = showShadow,
                 iconRadius = iconRadius,
+                iconCache = iconCache,
                 onClick = { onAppClick(app) }
             )
         }
@@ -97,31 +94,16 @@ fun AppGridItem(
     textSize: Int,
     showShadow: Boolean,
     iconRadius: Int,
+    iconCache: IconCache,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var isPressed by remember { mutableStateOf(false) }
 
-    // 异步加载图标 - 使用 ActivityInfo.loadIcon 获取 Activity 专属图标
-    var icon by remember(app.componentKey) { mutableStateOf<Drawable?>(null) }
+    // 使用 IconCache 异步加载图标
+    var iconBitmap by remember(app.componentKey) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(app.componentKey) {
-        icon = withContext(Dispatchers.IO) {
-            try {
-                val activityInfo = context.packageManager.getActivityInfo(
-                    ComponentName(app.packageName, app.activityName),
-                    PackageManager.GET_META_DATA
-                )
-                activityInfo.loadIcon(context.packageManager)
-            } catch (e: Exception) {
-                // 回退到应用图标
-                try {
-                    context.packageManager.getApplicationIcon(app.packageName)
-                } catch (e2: Exception) {
-                    null
-                }
-            }
-        }
+        iconBitmap = iconCache.getIcon(app.componentKey)
     }
 
     // 按压缩放动画
@@ -179,11 +161,12 @@ fun AppGridItem(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            icon?.let { drawable ->
-                DrawableImage(
-                    drawable = drawable,
+            iconBitmap?.let { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
                     contentDescription = app.displayName,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
                 )
             }
         }
@@ -206,24 +189,4 @@ fun AppGridItem(
             modifier = Modifier.fillMaxWidth()
         )
     }
-}
-
-/**
- * Drawable 图片组件
- */
-@Composable
-fun DrawableImage(
-    drawable: Drawable,
-    contentDescription: String?,
-    modifier: Modifier = Modifier
-) {
-    val bitmap = remember(drawable) {
-        drawable.toBitmap().asImageBitmap()
-    }
-    Image(
-        bitmap = bitmap,
-        contentDescription = contentDescription,
-        modifier = modifier,
-        contentScale = ContentScale.Fit
-    )
 }

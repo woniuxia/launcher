@@ -85,6 +85,12 @@ class AppRepository @Inject constructor(
             val (pkg, activity) = key.split("/", limit = 2)
             appDao.delete(pkg, activity)
         }
+
+        // 预热评分缓存
+        if (cachedScores.isEmpty()) {
+            cachedScores = calculateAllScores()
+            lastScoreUpdateTime = System.currentTimeMillis()
+        }
     }
 
     /**

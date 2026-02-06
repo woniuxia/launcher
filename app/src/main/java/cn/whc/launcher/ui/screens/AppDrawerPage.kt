@@ -43,7 +43,6 @@ import cn.whc.launcher.data.model.AppListItem
 import cn.whc.launcher.data.model.AppSettings
 import cn.whc.launcher.ui.components.AlphabetIndexBar
 import cn.whc.launcher.ui.components.AppListItem
-import cn.whc.launcher.ui.components.DrawableImage
 import cn.whc.launcher.ui.components.LetterHeader
 import cn.whc.launcher.ui.theme.OnSurfaceSecondary
 import cn.whc.launcher.ui.theme.PrimaryBlue

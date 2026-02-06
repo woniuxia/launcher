@@ -25,6 +25,7 @@ import cn.whc.launcher.ui.components.AlphabetIndexBar
 import cn.whc.launcher.ui.components.AppGrid
 import cn.whc.launcher.ui.components.ClockWidget
 import cn.whc.launcher.ui.components.TimeBasedRecommendation
+import cn.whc.launcher.util.IconCache
 
 /**
  * 首页屏幕
@@ -34,6 +35,7 @@ fun HomePage(
     homeApps: List<AppInfo>,
     availableLetters: Set<String>,
     settings: AppSettings,
+    iconCache: IconCache,
     onAppClick: (AppInfo) -> Unit,
     onClockClick: () -> Unit,
     onLetterSelected: (String) -> Unit,
@@ -79,6 +81,7 @@ fun HomePage(
                     layoutSettings = settings.layout,
                     showShadow = settings.appearance.showShadow,
                     iconRadius = settings.appearance.iconRadius,
+                    iconCache = iconCache,
                     onAppClick = onAppClick,
                     modifier = Modifier.fillMaxWidth()
                 )

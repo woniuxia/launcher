@@ -30,6 +30,7 @@ import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.ui.components.FloatingSearchButton
 import cn.whc.launcher.ui.components.WallpaperBackground
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
+import cn.whc.launcher.util.IconCache
 import kotlinx.coroutines.launch
 
 /**
@@ -38,6 +39,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LauncherContent(
     viewModel: LauncherViewModel,
+    iconCache: IconCache,
     onNavigateToSettings: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
@@ -150,6 +152,7 @@ fun LauncherContent(
                         homeApps = homeApps,
                         availableLetters = availableLetters,
                         settings = settings,
+                        iconCache = iconCache,
                         onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
                         onClockClick = { viewModel.openClock() },
                         onLetterSelected = { letter ->

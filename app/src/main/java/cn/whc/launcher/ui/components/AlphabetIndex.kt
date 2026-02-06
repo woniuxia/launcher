@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +62,9 @@ import cn.whc.launcher.ui.theme.SecondaryPurple
 import cn.whc.launcher.ui.theme.ShadowColorLight
 import cn.whc.launcher.ui.theme.SurfaceLight
 import cn.whc.launcher.ui.theme.SurfaceMedium
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -317,10 +321,11 @@ fun AppListItem(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             icon?.let { drawable ->
-                DrawableImage(
-                    drawable = drawable,
+                Image(
+                    bitmap = drawable.toBitmap().asImageBitmap(),
                     contentDescription = app.displayName,
-                    modifier = Modifier.size(iconSize.dp)
+                    modifier = Modifier.size(iconSize.dp),
+                    contentScale = ContentScale.Fit
                 )
             }
         }

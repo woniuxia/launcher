@@ -18,12 +18,17 @@ import cn.whc.launcher.ui.screens.LauncherContent
 import cn.whc.launcher.ui.screens.SettingsScreen
 import cn.whc.launcher.ui.theme.LauncherTheme
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
+import cn.whc.launcher.util.IconCache
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val viewModel: LauncherViewModel by viewModels()
+
+    @Inject
+    lateinit var iconCache: IconCache
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -53,6 +58,7 @@ class MainActivity : ComponentActivity() {
                         composable("launcher") {
                             LauncherContent(
                                 viewModel = viewModel,
+                                iconCache = iconCache,
                                 onNavigateToSettings = {
                                     navController.navigate("settings")
                                 }

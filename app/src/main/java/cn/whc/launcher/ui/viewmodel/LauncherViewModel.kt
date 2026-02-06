@@ -20,10 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -113,30 +111,29 @@ class LauncherViewModel @Inject constructor(
     private var autoDismissJob: Job? = null
 
     init {
-        // 冷启动优化：优先加载悬浮应用，再显示首页
+        // 冷启动优化：优先标记首页就绪，数据后台加载
         viewModelScope.launch {
             val hasHistory = appRepository.hasHistoryData()
 
             if (hasHistory) {
-                // 有历史数据：优先加载悬浮应用，确保首页显示时悬浮窗已就绪
+                // 有历史数据：先标记首页就绪，再加载悬浮应用
+                _isHomeDataReady.value = true
+
+                // 延迟 100ms 加载时间推荐，确保首页先渲染
+                delay(100)
                 val recommendations = appRepository.getTimeBasedRecommendations()
                 if (recommendations.isNotEmpty()) {
                     _timeBasedRecommendations.value = recommendations
                     _showTimeRecommendation.value = true
                     startAutoDismissTimer()
                 }
-                // 悬浮应用就绪后，标记首页就绪
-                _isHomeDataReady.value = true
+
                 // 后台同步最新数据（不阻塞 UI）
                 appRepository.syncInstalledApps()
             } else {
-                // 首次启动：必须等待同步完成
-                appRepository.syncInstalledApps()
-                // 等待首页数据就绪
-                homeApps.first { apps ->
-                    apps.isNotEmpty() || settings.value.layout.homeDisplayCount == 0
-                }
+                // 首次启动：先显示空首页，后台同步数据
                 _isHomeDataReady.value = true
+                appRepository.syncInstalledApps()
             }
         }
 
