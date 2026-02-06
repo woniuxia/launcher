@@ -2,6 +2,7 @@ package cn.whc.launcher.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.whc.launcher.data.cache.HomePageSnapshot
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.AppSettings
 import cn.whc.launcher.data.model.LayoutSettings
@@ -40,8 +41,13 @@ class LauncherViewModel @Inject constructor(
         )
 
     // 首页应用列表 (响应设置变化)
+    // 初始值从缓存加载，后续由 Flow 更新
+    private val _homeApps = MutableStateFlow<List<AppInfo>>(emptyList())
     @OptIn(ExperimentalCoroutinesApi::class)
-    val homeApps: StateFlow<List<AppInfo>> = settings
+    val homeApps: StateFlow<List<AppInfo>> = _homeApps.asStateFlow()
+
+    // 缓存的首页应用 (用于 Flow 订阅)
+    private val homeAppsFlow = settings
         .flatMapLatest { s ->
             appRepository.observeHomeApps(s.layout.homeDisplayCount)
         }
@@ -110,13 +116,31 @@ class LauncherViewModel @Inject constructor(
 
     private var autoDismissJob: Job? = null
 
-    init {
-        // 冷启动优化：优先标记首页就绪，数据后台加载
-        viewModelScope.launch {
-            val hasHistory = appRepository.hasHistoryData()
+    // 缓存的首页快照 (用于保存)
+    private var cachedSnapshot: HomePageSnapshot? = null
 
-            if (hasHistory) {
-                // 有历史数据：先标记首页就绪，再加载悬浮应用
+    init {
+        // 冷启动优化：优先从缓存加载，立即显示首页
+        viewModelScope.launch {
+            val cache = appRepository.loadHomePageFromCache()
+
+            if (cache != null) {
+                // 有缓存：立即使用缓存数据显示首页
+                _homeApps.value = cache.homeApps.map { with(appRepository) { it.toAppInfo() } }
+                if (cache.timeRecommendations.isNotEmpty()) {
+                    _timeBasedRecommendations.value = cache.timeRecommendations.map {
+                        with(appRepository) { it.toAppInfo() }
+                    }
+                    _showTimeRecommendation.value = true
+                    startAutoDismissTimer()
+                }
+                cachedSnapshot = cache
+                _isHomeDataReady.value = true
+
+                // 后台异步验证和更新数据
+                appRepository.syncInstalledApps()
+            } else if (appRepository.hasHistoryData()) {
+                // 无缓存但有历史数据：从数据库加载
                 _isHomeDataReady.value = true
 
                 // 延迟 100ms 加载时间推荐，确保首页先渲染
@@ -128,12 +152,23 @@ class LauncherViewModel @Inject constructor(
                     startAutoDismissTimer()
                 }
 
-                // 后台同步最新数据（不阻塞 UI）
+                // 后台同步最新数据
                 appRepository.syncInstalledApps()
             } else {
                 // 首次启动：先显示空首页，后台同步数据
                 _isHomeDataReady.value = true
                 appRepository.syncInstalledApps()
+            }
+        }
+
+        // 监听 homeAppsFlow 更新 _homeApps 并保存缓存
+        viewModelScope.launch {
+            homeAppsFlow.collect { apps ->
+                if (apps.isNotEmpty()) {
+                    _homeApps.value = apps
+                    // 保存缓存
+                    saveHomePageCache()
+                }
             }
         }
 
@@ -143,6 +178,25 @@ class LauncherViewModel @Inject constructor(
                 if (apps.isNotEmpty() && !_isDataReady.value) {
                     _isDataReady.value = true
                 }
+            }
+        }
+    }
+
+    /**
+     * 保存首页缓存
+     */
+    private fun saveHomePageCache() {
+        viewModelScope.launch {
+            val currentHomeApps = _homeApps.value
+            val currentRecommendations = _timeBasedRecommendations.value
+            val availableLetters = allAppsGrouped.value.keys
+
+            if (currentHomeApps.isNotEmpty()) {
+                appRepository.saveHomePageCache(
+                    homeApps = currentHomeApps,
+                    availableLetters = availableLetters,
+                    timeRecommendations = currentRecommendations
+                )
             }
         }
     }

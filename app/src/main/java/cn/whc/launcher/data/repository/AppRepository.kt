@@ -7,6 +7,9 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.provider.AlarmClock
 import android.provider.CallLog
+import cn.whc.launcher.data.cache.CachedAppInfo
+import cn.whc.launcher.data.cache.HomePageCache
+import cn.whc.launcher.data.cache.HomePageSnapshot
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
@@ -37,7 +40,8 @@ class AppRepository @Inject constructor(
     private val appDao: AppDao,
     private val dailyStatsDao: DailyStatsDao,
     private val blacklistDao: BlacklistDao,
-    private val launchTimeDao: LaunchTimeDao
+    private val launchTimeDao: LaunchTimeDao,
+    private val homePageCache: HomePageCache
 ) {
     private val packageManager: PackageManager = context.packageManager
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -63,6 +67,57 @@ class AppRepository @Inject constructor(
      */
     suspend fun hasHistoryData(): Boolean = withContext(Dispatchers.IO) {
         appDao.getAppCount() > 0
+    }
+
+    /**
+     * 检查是否有有效的首页缓存
+     */
+    suspend fun hasValidCache(): Boolean {
+        return homePageCache.load(HomePageCache.DEFAULT_MAX_AGE_MS) != null
+    }
+
+    /**
+     * 从缓存加载首页数据
+     * @return 缓存的首页快照，如果缓存无效返回 null
+     */
+    suspend fun loadHomePageFromCache(): HomePageSnapshot? {
+        return homePageCache.load()
+    }
+
+    /**
+     * 将 CachedAppInfo 转换为 AppInfo
+     */
+    fun CachedAppInfo.toAppInfo() = AppInfo(
+        packageName = packageName,
+        activityName = activityName,
+        displayName = displayName,
+        score = score,
+        firstLetter = firstLetter
+    )
+
+    /**
+     * 保存首页快照到缓存
+     */
+    suspend fun saveHomePageCache(
+        homeApps: List<AppInfo>,
+        availableLetters: Set<String>,
+        timeRecommendations: List<AppInfo>
+    ) {
+        val snapshot = HomePageSnapshot(
+            homeApps = homeApps.map { it.toCachedAppInfo() },
+            availableLetters = availableLetters,
+            scores = cachedScores,
+            timeRecommendations = timeRecommendations.map { it.toCachedAppInfo() },
+            timestamp = System.currentTimeMillis()
+        )
+        homePageCache.save(snapshot)
+    }
+
+    /**
+     * 使缓存失效 (应用安装/卸载/更新时调用)
+     */
+    suspend fun invalidateHomePageCache() {
+        homePageCache.clear()
     }
 
     /**
@@ -495,6 +550,8 @@ class AppRepository @Inject constructor(
         if (newApps.isNotEmpty()) {
             appDao.insertAll(newApps.map { it.toEntity() })
         }
+        // 使缓存失效
+        invalidateHomePageCache()
     }
 
     /**
@@ -503,6 +560,8 @@ class AppRepository @Inject constructor(
     suspend fun onAppUninstalled(packageName: String) = withContext(Dispatchers.IO) {
         appDao.deleteByPackageName(packageName)
         dailyStatsDao.deleteStatsByPackage(packageName)
+        // 使缓存失效
+        invalidateHomePageCache()
     }
 
     /**
@@ -536,6 +595,8 @@ class AppRepository @Inject constructor(
                 appDao.insert(app.toEntity())
             }
         }
+        // 使缓存失效
+        invalidateHomePageCache()
     }
 
     /**
@@ -671,6 +732,14 @@ class AppRepository @Inject constructor(
     private fun BlacklistEntity.toComponentKey() = "$packageName/$activityName"
 
     private fun cn.whc.launcher.data.dao.ComponentKey.toComponentKey() = "$packageName/$activityName"
+
+    private fun AppInfo.toCachedAppInfo() = CachedAppInfo(
+        packageName = packageName,
+        activityName = activityName,
+        displayName = displayName,
+        score = score,
+        firstLetter = firstLetter
+    )
 }
 
 // AppInfo 扩展属性

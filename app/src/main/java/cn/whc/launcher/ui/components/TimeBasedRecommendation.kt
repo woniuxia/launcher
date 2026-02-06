@@ -71,9 +71,10 @@ fun TimeBasedRecommendation(
     modifier: Modifier = Modifier
 ) {
     // 展开状态：启动时默认展开
-    var isExpanded by remember { mutableStateOf(false) }
+    // key 绑定 visible，当 visible 变化时重置状态
+    var isExpanded by remember(visible) { mutableStateOf(false) }
     // 是否已完成首次自动收起
-    var hasAutoCollapsed by remember { mutableStateOf(false) }
+    var hasAutoCollapsed by remember(visible) { mutableStateOf(false) }
     // 是否正在拖动
     var isDragging by remember { mutableStateOf(false) }
 
@@ -293,10 +294,20 @@ private fun RecommendationIcon(
                     ComponentName(app.packageName, app.activityName),
                     PackageManager.GET_META_DATA
                 )
-                activityInfo.loadIcon(context.packageManager)?.toBitmap()
+                val drawable = activityInfo.loadIcon(context.packageManager)
+                drawable?.toBitmap(
+                    drawable.intrinsicWidth.coerceAtLeast(1),
+                    drawable.intrinsicHeight.coerceAtLeast(1),
+                    android.graphics.Bitmap.Config.ARGB_8888
+                )
             } catch (e: Exception) {
                 try {
-                    context.packageManager.getApplicationIcon(app.packageName)?.toBitmap()
+                    val drawable = context.packageManager.getApplicationIcon(app.packageName)
+                    drawable.toBitmap(
+                        drawable.intrinsicWidth.coerceAtLeast(1),
+                        drawable.intrinsicHeight.coerceAtLeast(1),
+                        android.graphics.Bitmap.Config.ARGB_8888
+                    )
                 } catch (e2: Exception) {
                     null
                 }
