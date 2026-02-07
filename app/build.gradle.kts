@@ -89,9 +89,6 @@ dependencies {
     implementation(libs.hilt.work)
     ksp(libs.hilt.work.compiler)
 
-    // Coil
-    implementation(libs.coil.compose)
-
     // Pinyin4j
     implementation(libs.pinyin4j)
 

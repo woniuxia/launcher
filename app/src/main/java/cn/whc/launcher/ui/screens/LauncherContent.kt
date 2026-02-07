@@ -141,7 +141,7 @@ fun LauncherContent(
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 1,
+            beyondViewportPageCount = 0,
             // 根据用户设置的灵敏度调整滑动切换阈值
             flingBehavior = PagerDefaults.flingBehavior(
                 state = pagerState,

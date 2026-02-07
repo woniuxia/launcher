@@ -1,7 +1,5 @@
 package cn.whc.launcher.ui.components
 
-import android.content.ComponentName
-import android.content.pm.PackageManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -35,18 +33,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import cn.whc.launcher.R
 import cn.whc.launcher.data.model.AppInfo
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -279,37 +273,14 @@ private fun RecommendationIcon(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    var icon by remember(app.packageName, app.activityName) {
+    val iconCache = cn.whc.launcher.util.LocalIconCache.current
+    val componentKey = "${app.packageName}/${app.activityName}"
+    var iconBitmap by remember(componentKey) {
         mutableStateOf<android.graphics.Bitmap?>(null)
     }
 
-    LaunchedEffect(app.packageName, app.activityName) {
-        icon = withContext(Dispatchers.IO) {
-            try {
-                val activityInfo = context.packageManager.getActivityInfo(
-                    ComponentName(app.packageName, app.activityName),
-                    PackageManager.GET_META_DATA
-                )
-                val drawable = activityInfo.loadIcon(context.packageManager)
-                drawable?.toBitmap(
-                    drawable.intrinsicWidth.coerceAtLeast(1),
-                    drawable.intrinsicHeight.coerceAtLeast(1),
-                    android.graphics.Bitmap.Config.ARGB_8888
-                )
-            } catch (e: Exception) {
-                try {
-                    val drawable = context.packageManager.getApplicationIcon(app.packageName)
-                    drawable.toBitmap(
-                        drawable.intrinsicWidth.coerceAtLeast(1),
-                        drawable.intrinsicHeight.coerceAtLeast(1),
-                        android.graphics.Bitmap.Config.ARGB_8888
-                    )
-                } catch (e2: Exception) {
-                    null
-                }
-            }
-        }
+    LaunchedEffect(componentKey) {
+        iconBitmap = iconCache.getIcon(componentKey)
     }
 
     Box(
@@ -317,7 +288,7 @@ private fun RecommendationIcon(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        icon?.let { bitmap ->
+        iconBitmap?.let { bitmap ->
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = app.displayName,

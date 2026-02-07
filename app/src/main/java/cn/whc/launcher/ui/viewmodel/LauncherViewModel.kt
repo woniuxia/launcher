@@ -122,7 +122,7 @@ class LauncherViewModel @Inject constructor(
 
     // FAB 位置状态
     val fabPosition: StateFlow<Pair<Float, Float>> = settingsRepository.fabPosition
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Pair(0f, 0f))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Pair(0f, 0f))
 
     private var autoDismissJob: Job? = null
 

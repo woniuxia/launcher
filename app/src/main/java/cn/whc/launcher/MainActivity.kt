@@ -14,11 +14,13 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.runtime.CompositionLocalProvider
 import cn.whc.launcher.ui.screens.LauncherContent
 import cn.whc.launcher.ui.screens.SettingsScreen
 import cn.whc.launcher.ui.theme.LauncherTheme
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
 import cn.whc.launcher.util.IconCache
+import cn.whc.launcher.util.LocalIconCache
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -45,32 +47,34 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             LauncherTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.Transparent
-                ) {
-                    val navController = rememberNavController()
-
-                    NavHost(
-                        navController = navController,
-                        startDestination = "launcher"
+                CompositionLocalProvider(LocalIconCache provides iconCache) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color.Transparent
                     ) {
-                        composable("launcher") {
-                            LauncherContent(
-                                viewModel = viewModel,
-                                iconCache = iconCache,
-                                onNavigateToSettings = {
-                                    navController.navigate("settings")
-                                }
-                            )
-                        }
-                        composable("settings") {
-                            SettingsScreen(
-                                viewModel = viewModel,
-                                onNavigateBack = {
-                                    navController.popBackStack()
-                                }
-                            )
+                        val navController = rememberNavController()
+
+                        NavHost(
+                            navController = navController,
+                            startDestination = "launcher"
+                        ) {
+                            composable("launcher") {
+                                LauncherContent(
+                                    viewModel = viewModel,
+                                    iconCache = iconCache,
+                                    onNavigateToSettings = {
+                                        navController.navigate("settings")
+                                    }
+                                )
+                            }
+                            composable("settings") {
+                                SettingsScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = {
+                                        navController.popBackStack()
+                                    }
+                                )
+                            }
                         }
                     }
                 }

@@ -1,6 +1,5 @@
 package cn.whc.launcher.ui.components
 
-import android.graphics.drawable.Drawable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -43,7 +42,6 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -62,11 +60,10 @@ import cn.whc.launcher.ui.theme.SecondaryPurple
 import cn.whc.launcher.ui.theme.ShadowColorLight
 import cn.whc.launcher.ui.theme.SurfaceLight
 import cn.whc.launcher.ui.theme.SurfaceMedium
+import cn.whc.launcher.util.LocalIconCache
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.core.graphics.drawable.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 // 特殊索引符号
 const val SYMBOL_FAVORITES = "\u2726"
@@ -258,19 +255,14 @@ fun AppListItem(
     iconSize: Int = 48,
     textSize: Int = 16
 ) {
-    val context = LocalContext.current
+    val iconCache = LocalIconCache.current
     var isPressed by remember { mutableStateOf(false) }
 
-    // 异步加载图标
-    var icon by remember(app.packageName) { mutableStateOf<Drawable?>(null) }
-    LaunchedEffect(app.packageName) {
-        icon = withContext(Dispatchers.IO) {
-            try {
-                context.packageManager.getApplicationIcon(app.packageName)
-            } catch (e: Exception) {
-                null
-            }
-        }
+    // 异步加载图标（通过 IconCache，一次性转为 ImageBitmap）
+    val componentKey = "${app.packageName}/${app.activityName}"
+    var iconBitmap by remember(componentKey) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(componentKey) {
+        iconBitmap = iconCache.getIcon(componentKey)?.asImageBitmap()
     }
 
     val scale by animateFloatAsState(
@@ -320,9 +312,9 @@ fun AppListItem(
                 )
                 .clip(RoundedCornerShape(12.dp))
         ) {
-            icon?.let { drawable ->
+            iconBitmap?.let { bitmap ->
                 Image(
-                    bitmap = drawable.toBitmap().asImageBitmap(),
+                    bitmap = bitmap,
                     contentDescription = app.displayName,
                     modifier = Modifier.size(iconSize.dp),
                     contentScale = ContentScale.Fit

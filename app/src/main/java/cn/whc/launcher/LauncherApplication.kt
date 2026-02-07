@@ -37,8 +37,8 @@ class LauncherApplication : Application(), Configuration.Provider {
         // 初始化拼音库
         PinyinHelper.init(this)
 
-        // 注册定期清理任务
-        scheduleDataCleanup()
+        // 延迟注册定期清理任务（避免 WorkManager 内部数据库创建阻塞主线程）
+        android.os.Handler(mainLooper).post { scheduleDataCleanup() }
     }
 
     private fun scheduleDataCleanup() {

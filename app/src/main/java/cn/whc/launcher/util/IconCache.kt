@@ -5,13 +5,20 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.util.LruCache
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.core.graphics.drawable.toBitmap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+
+val LocalIconCache = staticCompositionLocalOf<IconCache> { error("No IconCache provided") }
 
 /**
  * 应用图标内存缓存
@@ -53,13 +60,20 @@ class IconCache @Inject constructor(
     }
 
     /**
-     * 预加载图标列表 (后台批量加载)
+     * 预加载图标列表 (并行加载，限制 4 并发)
      */
     suspend fun preloadIcons(componentKeys: List<String>) {
         withContext(Dispatchers.IO) {
-            componentKeys.forEach { key ->
-                if (cache.get(key) == null) {
-                    loadIcon(key)?.let { cache.put(key, it) }
+            val semaphore = Semaphore(4)
+            coroutineScope {
+                componentKeys.forEach { key ->
+                    if (cache.get(key) == null) {
+                        launch {
+                            semaphore.withPermit {
+                                loadIcon(key)?.let { cache.put(key, it) }
+                            }
+                        }
+                    }
                 }
             }
         }
