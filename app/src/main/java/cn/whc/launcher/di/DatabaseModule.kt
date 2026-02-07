@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
+import cn.whc.launcher.data.dao.GraylistDao
 import cn.whc.launcher.data.dao.LaunchTimeDao
 import cn.whc.launcher.data.database.LauncherDatabase
 import dagger.Module
@@ -40,6 +41,22 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS graylist (
+                    package_name TEXT NOT NULL,
+                    activity_name TEXT NOT NULL,
+                    added_at INTEGER NOT NULL,
+                    PRIMARY KEY (package_name, activity_name),
+                    FOREIGN KEY (package_name, activity_name)
+                        REFERENCES apps(package_name, activity_name)
+                        ON DELETE CASCADE
+                )
+            """)
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LauncherDatabase {
@@ -48,7 +65,7 @@ object DatabaseModule {
             LauncherDatabase::class.java,
             LauncherDatabase.DATABASE_NAME
         )
-            .addMigrations(MIGRATION_2_3)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -69,6 +86,12 @@ object DatabaseModule {
     @Singleton
     fun provideBlacklistDao(database: LauncherDatabase): BlacklistDao {
         return database.blacklistDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideGraylistDao(database: LauncherDatabase): GraylistDao {
+        return database.graylistDao()
     }
 
     @Provides

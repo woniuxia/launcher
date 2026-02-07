@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -197,6 +198,20 @@ class LauncherViewModel @Inject constructor(
                 }
             }
         }
+
+        // 监听黑灰名单变化，重新获取推荐（含补足逻辑）
+        viewModelScope.launch {
+            combine(
+                appRepository.observeBlacklist(),
+                appRepository.observeGraylist()
+            ) { blacklist, graylist -> blacklist.size to graylist.size }
+                .collect {
+                    // 仅在已有推荐数据时重新获取
+                    if (_timeBasedRecommendations.value.isNotEmpty()) {
+                        _timeBasedRecommendations.value = appRepository.getTimeBasedRecommendations()
+                    }
+                }
+        }
     }
 
     /**
@@ -291,6 +306,44 @@ class LauncherViewModel @Inject constructor(
             appRepository.removeFromBlacklist(packageName, activityName)
         }
     }
+
+    /**
+     * 获取黑名单应用列表
+     */
+    val blacklist: StateFlow<List<AppInfo>> = appRepository.observeBlacklist()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    /**
+     * 添加到灰名单
+     */
+    fun addToGraylist(packageName: String, activityName: String) {
+        viewModelScope.launch {
+            appRepository.addToGraylist(packageName, activityName)
+        }
+    }
+
+    /**
+     * 从灰名单移除
+     */
+    fun removeFromGraylist(packageName: String, activityName: String) {
+        viewModelScope.launch {
+            appRepository.removeFromGraylist(packageName, activityName)
+        }
+    }
+
+    /**
+     * 获取灰名单应用列表
+     */
+    val graylist: StateFlow<List<AppInfo>> = appRepository.observeGraylist()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     /**
      * 更新布局设置

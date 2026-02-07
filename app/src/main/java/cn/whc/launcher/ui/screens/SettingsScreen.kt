@@ -1,5 +1,7 @@
 package cn.whc.launcher.ui.screens
 
+import android.graphics.drawable.Drawable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,14 +13,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Divider
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -29,20 +35,32 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
+import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.AppSettings
 import cn.whc.launcher.data.model.BackgroundType
 import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.data.model.Theme
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 设置页面
@@ -54,6 +72,34 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
+
+    // 子页面状态: null=主设置页, "appManage"=应用管理
+    var currentSubPage by remember { mutableStateOf<String?>(null) }
+
+    when (currentSubPage) {
+        "appManage" -> AppManageScreen(
+            viewModel = viewModel,
+            onNavigateBack = { currentSubPage = null }
+        )
+        else -> SettingsMainScreen(
+            viewModel = viewModel,
+            settings = settings,
+            onNavigateBack = onNavigateBack,
+            onNavigateToAppManage = { currentSubPage = "appManage" }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsMainScreen(
+    viewModel: LauncherViewModel,
+    settings: AppSettings,
+    onNavigateBack: () -> Unit,
+    onNavigateToAppManage: () -> Unit
+) {
+    val blacklist by viewModel.blacklist.collectAsState()
+    val graylist by viewModel.graylist.collectAsState()
 
     Box(
         modifier = Modifier
@@ -394,6 +440,19 @@ fun SettingsScreen(
                     )
                 }
 
+                // 应用管理设置
+                item {
+                    SettingsSection(title = "应用管理")
+                }
+
+                item {
+                    NavigationSettingItem(
+                        title = "应用显示管理",
+                        subtitle = "黑名单 ${blacklist.size} 个，灰名单 ${graylist.size} 个",
+                        onClick = onNavigateToAppManage
+                    )
+                }
+
                 // 关于
                 item {
                     SettingsSection(title = "关于")
@@ -572,5 +631,308 @@ private fun TextSettingItem(
             color = Color.White.copy(alpha = 0.6f),
             fontSize = 14.sp
         )
+    }
+}
+
+@Composable
+private fun NavigationSettingItem(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 16.sp
+            )
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.6f)
+        )
+    }
+}
+
+/**
+ * 应用显示管理页面
+ * 合并黑名单和灰名单管理，按首字母分组显示
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppManageScreen(
+    viewModel: LauncherViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val blacklist by viewModel.blacklist.collectAsState()
+    val graylist by viewModel.graylist.collectAsState()
+    val allAppsGrouped by viewModel.allAppsGrouped.collectAsState()
+
+    // 构建黑名单和灰名单的 key 集合
+    val blacklistKeys = blacklist.map { "${it.packageName}/${it.activityName}" }.toSet()
+    val graylistKeys = graylist.map { "${it.packageName}/${it.activityName}" }.toSet()
+
+    // 合并所有应用（包括黑名单中的应用）
+    val allApps = remember(allAppsGrouped, blacklist) {
+        val visibleApps = allAppsGrouped.values.flatten()
+        val hiddenApps = blacklist
+        (visibleApps + hiddenApps)
+            .distinctBy { "${it.packageName}/${it.activityName}" }
+            .groupBy { it.firstLetter }
+            .toSortedMap(compareBy { if (it == "#") "\uFFFF" else it })
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "应用显示管理",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent
+                )
+            )
+
+            // 说明文字
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "灰名单：不在首页和推荐中显示",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "黑名单：完全隐藏（自动包含灰名单效果）",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp
+                )
+            }
+
+            // 表头
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = "灰名单",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    modifier = Modifier.width(56.dp),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "黑名单",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    modifier = Modifier.width(56.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                allApps.forEach { (letter, apps) ->
+                    // 首字母分组头
+                    item(key = "header_$letter") {
+                        LetterHeader(letter = letter)
+                    }
+
+                    // 该分组下的应用
+                    items(apps, key = { "${it.packageName}/${it.activityName}" }) { app ->
+                        val appKey = "${app.packageName}/${app.activityName}"
+                        val isBlacklisted = appKey in blacklistKeys
+                        val isGraylisted = appKey in graylistKeys || isBlacklisted
+
+                        AppManageItem(
+                            app = app,
+                            isGraylisted = isGraylisted,
+                            isBlacklisted = isBlacklisted,
+                            onGraylistChange = { checked ->
+                                if (checked) {
+                                    viewModel.addToGraylist(app.packageName, app.activityName)
+                                } else {
+                                    viewModel.removeFromGraylist(app.packageName, app.activityName)
+                                }
+                            },
+                            onBlacklistChange = { checked ->
+                                if (checked) {
+                                    viewModel.addToBlacklist(app.packageName, app.activityName)
+                                    // 黑名单自动包含灰名单效果，但不需要显式添加到灰名单
+                                } else {
+                                    viewModel.removeFromBlacklist(app.packageName, app.activityName)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(32.dp)) }
+            }
+        }
+    }
+}
+
+/**
+ * 首字母分组头
+ */
+@Composable
+private fun LetterHeader(letter: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.08f))
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = letter,
+            color = Color(0xFF007AFF),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/**
+ * 应用管理列表项
+ */
+@Composable
+private fun AppManageItem(
+    app: AppInfo,
+    isGraylisted: Boolean,
+    isBlacklisted: Boolean,
+    onGraylistChange: (Boolean) -> Unit,
+    onBlacklistChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    var icon by remember(app.packageName, app.activityName) { mutableStateOf<Drawable?>(null) }
+
+    LaunchedEffect(app.packageName, app.activityName) {
+        icon = withContext(Dispatchers.IO) {
+            try {
+                context.packageManager.getApplicationIcon(app.packageName)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 应用图标
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+        ) {
+            icon?.let { drawable ->
+                Image(
+                    bitmap = drawable.toBitmap().asImageBitmap(),
+                    contentDescription = app.displayName,
+                    modifier = Modifier.size(40.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 应用名称
+        Text(
+            text = app.displayName,
+            color = if (isBlacklisted) Color.White.copy(alpha = 0.5f) else Color.White,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+
+        // 灰名单开关
+        Box(
+            modifier = Modifier.width(56.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Checkbox(
+                checked = isGraylisted,
+                onCheckedChange = { checked ->
+                    // 如果是黑名单，不允许取消灰名单
+                    if (!isBlacklisted) {
+                        onGraylistChange(checked)
+                    }
+                },
+                enabled = !isBlacklisted,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Color(0xFF007AFF),
+                    uncheckedColor = Color.White.copy(alpha = 0.4f),
+                    checkmarkColor = Color.White,
+                    disabledCheckedColor = Color(0xFF007AFF).copy(alpha = 0.5f),
+                    disabledUncheckedColor = Color.White.copy(alpha = 0.2f)
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // 黑名单开关
+        Box(
+            modifier = Modifier.width(56.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Checkbox(
+                checked = isBlacklisted,
+                onCheckedChange = onBlacklistChange,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Color(0xFFFF3B30),
+                    uncheckedColor = Color.White.copy(alpha = 0.4f),
+                    checkmarkColor = Color.White
+                )
+            )
+        }
     }
 }

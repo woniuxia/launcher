@@ -13,9 +13,11 @@ import cn.whc.launcher.data.cache.HomePageSnapshot
 import cn.whc.launcher.data.dao.AppDao
 import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
+import cn.whc.launcher.data.dao.GraylistDao
 import cn.whc.launcher.data.dao.LaunchTimeDao
 import cn.whc.launcher.data.entity.AppEntity
 import cn.whc.launcher.data.entity.BlacklistEntity
+import cn.whc.launcher.data.entity.GraylistEntity
 import cn.whc.launcher.data.entity.LaunchTimeEntity
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.util.PinyinHelper
@@ -43,6 +45,7 @@ class AppRepository @Inject constructor(
     private val appDao: AppDao,
     private val dailyStatsDao: DailyStatsDao,
     private val blacklistDao: BlacklistDao,
+    private val graylistDao: GraylistDao,
     private val launchTimeDao: LaunchTimeDao,
     private val homePageCache: HomePageCache
 ) {
@@ -188,17 +191,24 @@ class AppRepository @Inject constructor(
     /**
      * 获取首页应用列表 (按频率排序)
      * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
+     * 过滤黑名单和灰名单应用
      */
     fun observeHomeApps(limit: Int): Flow<List<AppInfo>> {
         return combine(
             appDao.getAllApps(),
             blacklistDao.getAllBlacklist(),
+            graylistDao.getAllGraylist(),
             _sortRefreshTrigger
-        ) { apps, blacklist, _ ->
+        ) { apps, blacklist, graylist, _ ->
             val blacklistKeys = blacklist.map { it.toComponentKey() }.toSet()
+            val graylistKeys = graylist.map { it.toComponentKey() }.toSet()
             val scores = getScores()
 
-            apps.filter { it.toComponentKey() !in blacklistKeys && !it.isHidden }
+            apps.filter {
+                it.toComponentKey() !in blacklistKeys &&
+                        it.toComponentKey() !in graylistKeys &&
+                        !it.isHidden
+            }
                 .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
                 .sortedByDescending { it.score }
                 .take(limit)
@@ -208,19 +218,26 @@ class AppRepository @Inject constructor(
     /**
      * 获取应用抽屉常用区应用 (排除首页应用)
      * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
+     * 过滤黑名单和灰名单应用
      */
     fun observeFrequentApps(excludeHomeApps: Boolean, limit: Int, homeAppLimit: Int = 0): Flow<List<AppInfo>> {
         return combine(
             appDao.getAllApps(),
             blacklistDao.getAllBlacklist(),
+            graylistDao.getAllGraylist(),
             _sortRefreshTrigger
-        ) { apps, blacklist, _ ->
+        ) { apps, blacklist, graylist, _ ->
             val blacklistKeys = blacklist.map { it.toComponentKey() }.toSet()
+            val graylistKeys = graylist.map { it.toComponentKey() }.toSet()
             val scores = getScores()
 
             // 获取首页应用 componentKey 列表（按 score 排序取前 homeAppLimit 个）
             val homeKeys = if (excludeHomeApps && homeAppLimit > 0) {
-                apps.filter { it.toComponentKey() !in blacklistKeys && !it.isHidden }
+                apps.filter {
+                    it.toComponentKey() !in blacklistKeys &&
+                            it.toComponentKey() !in graylistKeys &&
+                            !it.isHidden
+                }
                     .map { it to (scores[it.toComponentKey()] ?: 0f) }
                     .sortedByDescending { it.second }
                     .take(homeAppLimit)
@@ -232,6 +249,7 @@ class AppRepository @Inject constructor(
 
             apps.filter {
                 it.toComponentKey() !in blacklistKeys &&
+                        it.toComponentKey() !in graylistKeys &&
                         !it.isHidden &&
                         it.toComponentKey() !in homeKeys
             }
@@ -318,6 +336,7 @@ class AppRepository @Inject constructor(
     /**
      * 获取时间段推荐应用 (Top 5)
      * 算法: 当前时间 +-30分钟窗口内启动次数最多的应用，不足5个用频率排序补充
+     * 过滤黑名单和灰名单应用
      */
     suspend fun getTimeBasedRecommendations(): List<AppInfo> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
@@ -342,16 +361,19 @@ class AppRepository @Inject constructor(
             launchTimeDao.getTimeWindowStats(startMinutes, endMinutes, cutoffTimestamp)
         }
 
-        // 获取黑名单
+        // 获取黑名单和灰名单
         val blacklistKeys = blacklistDao.getAllBlacklistList()
             .map { it.toComponentKey() }
             .toSet()
+        val graylistKeys = graylistDao.getAllGraylistList()
+            .map { it.toComponentKey() }
+            .toSet()
 
-        // 过滤黑名单和隐藏应用，取 Top 5
+        // 过滤黑名单、灰名单和隐藏应用，取 Top 5
         val timeBasedApps = timeWindowStats
             .filter { stat ->
                 val key = "${stat.packageName}/${stat.activityName}"
-                key !in blacklistKeys
+                key !in blacklistKeys && key !in graylistKeys
             }
             .take(5)
             .mapNotNull { stat ->
@@ -369,6 +391,7 @@ class AppRepository @Inject constructor(
                 .filter { app ->
                     val key = app.toComponentKey()
                     key !in blacklistKeys &&
+                            key !in graylistKeys &&
                             key !in existingKeys &&
                             !app.isHidden
                 }
@@ -547,6 +570,32 @@ class AppRepository @Inject constructor(
     fun observeBlacklist(): Flow<List<AppInfo>> {
         return blacklistDao.getAllBlacklist().map { blacklist ->
             blacklist.mapNotNull { entity ->
+                appDao.getApp(entity.packageName, entity.activityName)?.toAppInfo(0f)
+            }
+        }
+    }
+
+    /**
+     * 添加到灰名单
+     * 灰名单应用不在首页、常用应用和推荐应用中展示，但在抽屉页面可见
+     */
+    suspend fun addToGraylist(packageName: String, activityName: String) = withContext(Dispatchers.IO) {
+        graylistDao.insert(GraylistEntity(packageName, activityName))
+    }
+
+    /**
+     * 从灰名单移除
+     */
+    suspend fun removeFromGraylist(packageName: String, activityName: String) = withContext(Dispatchers.IO) {
+        graylistDao.delete(packageName, activityName)
+    }
+
+    /**
+     * 获取灰名单应用列表
+     */
+    fun observeGraylist(): Flow<List<AppInfo>> {
+        return graylistDao.getAllGraylist().map { graylist ->
+            graylist.mapNotNull { entity ->
                 appDao.getApp(entity.packageName, entity.activityName)?.toAppInfo(0f)
             }
         }
@@ -754,6 +803,8 @@ class AppRepository @Inject constructor(
     private fun AppEntity.toComponentKey() = "$packageName/$activityName"
 
     private fun BlacklistEntity.toComponentKey() = "$packageName/$activityName"
+
+    private fun GraylistEntity.toComponentKey() = "$packageName/$activityName"
 
     private fun cn.whc.launcher.data.dao.ComponentKey.toComponentKey() = "$packageName/$activityName"
 
