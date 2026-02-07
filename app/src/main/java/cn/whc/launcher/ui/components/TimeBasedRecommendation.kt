@@ -103,9 +103,9 @@ fun TimeBasedRecommendation(
                     stiffness = Spring.StiffnessLow
                 )
             )
-            // 3秒后收起
+            // 3秒后自动收起（用户手动收起时协程会被取消）
             delay(3000)
-            if (!isDragging) {
+            if (!isDragging && isExpanded) {
                 isExpanded = false
                 hasAutoCollapsed = true
                 expandProgress.animateTo(
@@ -118,9 +118,17 @@ fun TimeBasedRecommendation(
         }
     }
 
-    // 响应手动展开/收起
-    LaunchedEffect(isExpanded, hasAutoCollapsed) {
-        if (hasAutoCollapsed) {
+    // 响应手动展开/收起（首次自动展开期间的手动收起也在此处理）
+    LaunchedEffect(isExpanded) {
+        if (!isExpanded && !hasAutoCollapsed && expandProgress.value > 0f) {
+            // 首次自动展开期间用户手动点击收起
+            hasAutoCollapsed = true
+            expandProgress.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 200)
+            )
+            fabAlphaAnim.animateTo(0.6f, tween(300))
+        } else if (hasAutoCollapsed) {
             if (isExpanded) {
                 fabAlphaAnim.animateTo(1f, tween(200))
                 expandProgress.animateTo(

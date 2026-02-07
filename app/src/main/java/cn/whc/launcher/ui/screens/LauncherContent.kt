@@ -68,9 +68,14 @@ fun LauncherContent(
     val drawerListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // 页面重新激活时刷新应用排序和恢复 FAB
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    // Launcher 进入后台时刷新排序，此时界面不可见，排序静默完成
+    // 用户返回时直接看到新排序，无跳动
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         viewModel.refreshAppSort()
+    }
+
+    // 页面重新激活时恢复 FAB
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.restoreTimeRecommendation()
     }
 
