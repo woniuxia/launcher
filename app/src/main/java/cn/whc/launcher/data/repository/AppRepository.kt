@@ -670,7 +670,12 @@ class AppRepository @Inject constructor(
     /**
      * 计算单个应用评分
      *
-     * 评分公式: 总次数权重(50%) + 时间衰减权重(30%) + 近期活跃权重(20%)
+     * 评分公式: 总次数权重(50%) + 频率加权时间衰减(30%) + 近期活跃权重(20%)
+     *
+     * 时间衰减采用频率加权策略：
+     * - freqFactor = min(count30d / 30, 1)，月均1次/天为满分
+     * - adjustedDecay = timeDecayScore × freqFactor
+     * - 效果：低频应用"刚用过"的加成被大幅削弱，避免偶尔使用的应用排名过高
      */
     private fun calculateScore(
         count30d: Int,
@@ -687,7 +692,13 @@ class AppRepository @Inject constructor(
         // 7天半衰期衰减公式: 0.5^(days/7)
         val timeDecayScore = (0.5.pow(daysSinceLastLaunch / 7.0) * 100).toFloat()
 
-        return count30d * 0.5f + timeDecayScore * 0.3f + count7d * 0.2f
+        // 频率因子：月均1次/天(30次)为满分1.0，低于此按比例降低
+        val freqFactor = (count30d / 30f).coerceIn(0f, 1f)
+
+        // 时间衰减 × 频率因子，低频应用的"刚用过"加成被削弱
+        val adjustedDecay = timeDecayScore * freqFactor
+
+        return count30d * 0.5f + adjustedDecay * 0.3f + count7d * 0.2f
     }
 
     /**
