@@ -12,6 +12,7 @@ import cn.whc.launcher.data.model.SearchSettings
 import cn.whc.launcher.data.model.GestureSettings
 import cn.whc.launcher.data.repository.AppRepository
 import cn.whc.launcher.data.repository.SettingsRepository
+import cn.whc.launcher.util.IconCache
 import cn.whc.launcher.util.SearchHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,7 +31,8 @@ import javax.inject.Inject
 @HiltViewModel
 class LauncherViewModel @Inject constructor(
     private val appRepository: AppRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val iconCache: IconCache
 ) : ViewModel() {
 
     // 设置
@@ -146,12 +148,21 @@ class LauncherViewModel @Inject constructor(
                 }
                 cachedSnapshot = cache
                 _isHomeDataReady.value = true
+                _isDataReady.value = true  // 缓存就绪即允许内容可见，无需等 Room
+
+                // 预加载首页图标，使 Compose 首帧渲染时 LRU 已有数据
+                val allComponentKeys = _homeApps.value.map { it.componentKey } +
+                    _timeBasedRecommendations.value.map { it.componentKey }
+                if (allComponentKeys.isNotEmpty()) {
+                    iconCache.preloadIcons(allComponentKeys)
+                }
 
                 // 后台异步验证和更新数据
                 appRepository.syncInstalledApps()
             } else if (appRepository.hasHistoryData()) {
                 // 无缓存但有历史数据：从数据库加载
                 _isHomeDataReady.value = true
+                _isDataReady.value = true  // 有历史数据即允许内容可见
 
                 // 延迟 100ms 加载时间推荐，确保首页先渲染
                 delay(100)
@@ -167,6 +178,7 @@ class LauncherViewModel @Inject constructor(
             } else {
                 // 首次启动：先显示空首页，后台同步数据
                 _isHomeDataReady.value = true
+                _isDataReady.value = true  // 首次启动也立即允许内容可见
                 appRepository.syncInstalledApps()
             }
         }

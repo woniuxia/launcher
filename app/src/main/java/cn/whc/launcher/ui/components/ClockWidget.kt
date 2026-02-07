@@ -29,7 +29,9 @@ import cn.whc.launcher.ui.theme.OnSurfaceSecondary
 import cn.whc.launcher.ui.theme.OnSurfaceTertiary
 import cn.whc.launcher.ui.theme.ShadowColor
 import cn.whc.launcher.util.LunarCalendar
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -49,9 +51,8 @@ fun ClockWidget(
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
     var isVisible by remember { mutableStateOf(false) }
 
-    // 入场动画延迟触发
+    // 入场动画立即触发（不再延迟）
     LaunchedEffect(Unit) {
-        delay(100)
         isVisible = true
     }
 
@@ -79,9 +80,9 @@ fun ClockWidget(
 
     AnimatedVisibility(
         visible = isVisible,
-        enter = fadeIn(animationSpec = tween(500)) +
+        enter = fadeIn(animationSpec = tween(300)) +
                 slideInVertically(
-                    animationSpec = tween(500),
+                    animationSpec = tween(300),
                     initialOffsetY = { -20 }
                 )
     ) {
@@ -139,31 +140,39 @@ fun ClockWidget(
 
             // 农历
             if (settings.showLunar) {
-                val lunar = remember(currentDate) {
-                    LunarCalendar.solarToLunar(currentDate)
+                var lunar by remember { mutableStateOf<LunarCalendar.LunarDate?>(null) }
+                LaunchedEffect(currentDate) {
+                    lunar = withContext(Dispatchers.Default) {
+                        LunarCalendar.solarToLunar(currentDate)
+                    }
                 }
-                Text(
-                    text = "农历${lunar.getFullDateStr()}",
-                    style = TextStyle(
-                        color = OnSurfaceTertiary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Normal,
-                        letterSpacing = 0.3.sp,
-                        shadow = lightShadow
+                lunar?.let {
+                    Text(
+                        text = "农历${it.getFullDateStr()}",
+                        style = TextStyle(
+                            color = OnSurfaceTertiary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                            letterSpacing = 0.3.sp,
+                            shadow = lightShadow
+                        )
                     )
-                )
+                }
             }
 
             // 节气/节日倒计时
             if (settings.showFestival) {
-                val nextEvent = remember(currentDate) {
-                    LunarCalendar.getNextEvent(currentDate)
+                var nextEvent by remember { mutableStateOf<LunarCalendar.FestivalInfo?>(null) }
+                LaunchedEffect(currentDate) {
+                    nextEvent = withContext(Dispatchers.Default) {
+                        LunarCalendar.getNextEvent(currentDate)
+                    }
                 }
-                if (nextEvent != null) {
-                    val displayText = when (nextEvent.daysUntil) {
-                        0 -> "今天${nextEvent.name}"
-                        1 -> "明天${nextEvent.name}"
-                        else -> "距${nextEvent.name}还有${nextEvent.daysUntil}天"
+                nextEvent?.let { event ->
+                    val displayText = when (event.daysUntil) {
+                        0 -> "今天${event.name}"
+                        1 -> "明天${event.name}"
+                        else -> "距${event.name}还有${event.daysUntil}天"
                     }
                     Text(
                         text = displayText,

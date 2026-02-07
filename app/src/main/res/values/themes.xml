@@ -10,7 +10,6 @@
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <!-- 禁用窗口动画，避免透明窗口+壁纸背景时的模糊过渡效果 -->
         <item name="android:windowAnimationStyle">@null</item>
-        <item name="android:windowDisablePreview">true</item>
     </style>
 
     <!-- Splash Screen 启动主题 - 透明背景显示壁纸 -->
