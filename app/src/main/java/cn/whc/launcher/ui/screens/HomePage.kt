@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,6 +28,7 @@ import cn.whc.launcher.ui.components.AppGrid
 import cn.whc.launcher.ui.components.ClockWidget
 import cn.whc.launcher.ui.components.TimeBasedRecommendation
 import cn.whc.launcher.util.IconCache
+import kotlinx.coroutines.launch
 
 /**
  * 首页屏幕
@@ -50,6 +53,26 @@ fun HomePage(
     onFabPositionChanged: (Float, Float) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    val scope = rememberCoroutineScope()
+
+    // 预加载首页应用图标
+    LaunchedEffect(homeApps) {
+        if (homeApps.isNotEmpty()) {
+            scope.launch {
+                iconCache.preloadIcons(homeApps.map { it.componentKey })
+            }
+        }
+    }
+
+    // 预加载时间推荐应用图标
+    LaunchedEffect(timeRecommendations) {
+        if (timeRecommendations.isNotEmpty()) {
+            scope.launch {
+                iconCache.preloadIcons(timeRecommendations.map { it.componentKey })
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()

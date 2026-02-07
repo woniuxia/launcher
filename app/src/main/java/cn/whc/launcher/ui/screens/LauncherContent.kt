@@ -68,9 +68,10 @@ fun LauncherContent(
     val drawerListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // 页面重新激活时刷新应用排序
+    // 页面重新激活时刷新应用排序和恢复 FAB
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshAppSort()
+        viewModel.restoreTimeRecommendation()
     }
 
     // 计算抽屉列表中字母头的位置（与 AppDrawerPage 的列表结构一致）

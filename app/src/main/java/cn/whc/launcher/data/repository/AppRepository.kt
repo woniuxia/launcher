@@ -26,7 +26,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
@@ -46,10 +49,15 @@ class AppRepository @Inject constructor(
     private val packageManager: PackageManager = context.packageManager
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
+    companion object {
+        private const val TAG = "AppRepository"
+    }
+
     // 评分缓存 - 使用 componentKey (packageName/activityName) 作为键
     // 仅在 triggerSortRefresh() 调用时刷新，不使用时间过期机制
     private var cachedScores: Map<String, Float> = emptyMap()
     private var scoreCacheInvalid: Boolean = true  // 标记缓存是否需要刷新
+    private val scoreCacheMutex = Mutex()  // 保护缓存读写
 
     // 排序刷新触发器：只有触发时才重新计算排序
     private val _sortRefreshTrigger = MutableStateFlow(0L)
@@ -58,7 +66,7 @@ class AppRepository @Inject constructor(
      * 触发排序刷新（页面重新激活时调用）
      */
     fun triggerSortRefresh() {
-        invalidateScoreCache()
+        scoreCacheInvalid = true
         _sortRefreshTrigger.value = System.currentTimeMillis()
     }
 
@@ -395,6 +403,7 @@ class AppRepository @Inject constructor(
             context.startActivity(intent)
             true
         } catch (e: Exception) {
+            Timber.tag(TAG).d(e, "ComponentName launch failed, trying fallback: %s/%s", packageName, activityName)
             // 回退到 getLaunchIntentForPackage
             try {
                 val fallbackIntent = packageManager.getLaunchIntentForPackage(packageName)
@@ -403,9 +412,11 @@ class AppRepository @Inject constructor(
                     context.startActivity(fallbackIntent)
                     true
                 } else {
+                    Timber.tag(TAG).w("No launch intent found for package: %s", packageName)
                     false
                 }
             } catch (e2: Exception) {
+                Timber.tag(TAG).e(e2, "Failed to launch app: %s/%s", packageName, activityName)
                 false
             }
         }
@@ -509,6 +520,7 @@ class AppRepository @Inject constructor(
                 false
             }
         } catch (e: Exception) {
+            Timber.tag(TAG).w(e, "Failed to start activity with intent: %s", intent.action)
             false
         }
     }
@@ -614,42 +626,41 @@ class AppRepository @Inject constructor(
      * 获取评分缓存
      * 仅在缓存被显式失效时重新计算，避免排序抖动
      */
-    private suspend fun getScores(): Map<String, Float> {
+    /**
+     * 获取评分缓存 (线程安全)
+     * 仅在缓存被显式失效时重新计算，避免排序抖动
+     */
+    private suspend fun getScores(): Map<String, Float> = scoreCacheMutex.withLock {
         if (scoreCacheInvalid || cachedScores.isEmpty()) {
             cachedScores = calculateAllScores()
             scoreCacheInvalid = false
         }
-        return cachedScores
+        cachedScores
     }
 
     /**
-     * 使评分缓存失效（由 triggerSortRefresh 调用）
-     */
-    private fun invalidateScoreCache() {
-        scoreCacheInvalid = true
-    }
-
-    /**
-     * 批量计算所有应用评分
+     * 批量计算所有应用评分 (优化版: 减少数据库查询)
      */
     private suspend fun calculateAllScores(): Map<String, Float> {
         val startDate30d = LocalDate.now().minusDays(30).format(dateFormatter)
         val startDate7d = LocalDate.now().minusDays(7).format(dateFormatter)
 
-        val stats30d = dailyStatsDao.getStatsSince(startDate30d)
-            .associate { "${it.packageName}/${it.activityName}" to it.totalCount }
-        val stats7d = dailyStatsDao.getStatsSince(startDate7d)
-            .associate { "${it.packageName}/${it.activityName}" to it.totalCount }
+        // 单次查询获取 30天 和 7天 统计
+        val scoreStats = dailyStatsDao.getScoreStats(startDate30d, startDate7d)
+            .associate { "${it.packageName}/${it.activityName}" to (it.count30d to it.count7d) }
+
+        // 获取最后启动时间
         val lastLaunchTimes = appDao.getAllLastLaunchTimes()
             .associate { "${it.packageName}/${it.activityName}" to it.lastLaunchTime }
 
         val now = System.currentTimeMillis()
-        val allKeys = (stats30d.keys + stats7d.keys + lastLaunchTimes.keys).distinct()
+        val allKeys = (scoreStats.keys + lastLaunchTimes.keys).distinct()
 
         return allKeys.associateWith { key ->
+            val (count30d, count7d) = scoreStats[key] ?: (0 to 0)
             calculateScore(
-                count30d = stats30d[key] ?: 0,
-                count7d = stats7d[key] ?: 0,
+                count30d = count30d,
+                count7d = count7d,
                 lastLaunchTime = lastLaunchTimes[key] ?: 0L,
                 now = now
             )
@@ -689,10 +700,12 @@ class AppRepository @Inject constructor(
         )
         activityInfo.loadIcon(packageManager)
     } catch (e: Exception) {
+        Timber.tag(TAG).d(e, "Activity icon not found, trying app icon: %s/%s", packageName, activityName)
         // 回退到应用图标
         try {
             packageManager.getApplicationIcon(packageName)
         } catch (e2: Exception) {
+            Timber.tag(TAG).w(e2, "Failed to load icon for: %s", packageName)
             null
         }
     }

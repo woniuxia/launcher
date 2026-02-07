@@ -30,6 +30,9 @@ pinyin4j = "2.5.1"
 # Serialization
 kotlinxSerialization = "1.10.0"
 
+# Timber
+timber = "5.0.1"
+
 # SplashScreen
 splashscreen = "1.0.1"
 
@@ -88,6 +91,9 @@ pinyin4j = { group = "com.belerweb", name = "pinyin4j", version.ref = "pinyin4j"
 
 # Kotlinx Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# Timber
+timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 
 # SplashScreen
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }

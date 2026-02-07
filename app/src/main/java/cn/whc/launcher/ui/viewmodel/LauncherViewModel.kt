@@ -40,16 +40,25 @@ class LauncherViewModel @Inject constructor(
             initialValue = AppSettings()
         )
 
-    // 首页应用列表 (响应设置变化)
+    // 布局设置 (仅用于 homeApps/frequentApps 订阅)
+    private val layoutSettings = settingsRepository.layoutSettings
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = LayoutSettings()
+        )
+
+    // 首页应用列表 (响应布局设置变化)
     // 初始值从缓存加载，后续由 Flow 更新
     private val _homeApps = MutableStateFlow<List<AppInfo>>(emptyList())
     @OptIn(ExperimentalCoroutinesApi::class)
     val homeApps: StateFlow<List<AppInfo>> = _homeApps.asStateFlow()
 
-    // 缓存的首页应用 (用于 Flow 订阅)
-    private val homeAppsFlow = settings
-        .flatMapLatest { s ->
-            appRepository.observeHomeApps(s.layout.homeDisplayCount)
+    // 缓存的首页应用 (用于 Flow 订阅，仅响应布局设置变化)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val homeAppsFlow = layoutSettings
+        .flatMapLatest { layout ->
+            appRepository.observeHomeApps(layout.homeDisplayCount)
         }
         .stateIn(
             scope = viewModelScope,
@@ -57,14 +66,14 @@ class LauncherViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    // 应用抽屉常用区应用
+    // 应用抽屉常用区应用 (仅响应布局设置变化)
     @OptIn(ExperimentalCoroutinesApi::class)
-    val frequentApps: StateFlow<List<AppInfo>> = settings
-        .flatMapLatest { s ->
+    val frequentApps: StateFlow<List<AppInfo>> = layoutSettings
+        .flatMapLatest { layout ->
             appRepository.observeFrequentApps(
                 excludeHomeApps = true,
-                limit = s.layout.drawerFrequentCount,
-                homeAppLimit = s.layout.homeDisplayCount
+                limit = layout.drawerFrequentCount,
+                homeAppLimit = layout.homeDisplayCount
             )
         }
         .stateIn(
@@ -177,6 +186,14 @@ class LauncherViewModel @Inject constructor(
             allAppsGrouped.collect { apps ->
                 if (apps.isNotEmpty() && !_isDataReady.value) {
                     _isDataReady.value = true
+                    // 如果还没有时间推荐数据，尝试加载
+                    if (_timeBasedRecommendations.value.isEmpty()) {
+                        val recommendations = appRepository.getTimeBasedRecommendations()
+                        if (recommendations.isNotEmpty()) {
+                            _timeBasedRecommendations.value = recommendations
+                            _showTimeRecommendation.value = true
+                        }
+                    }
                 }
             }
         }
@@ -361,6 +378,16 @@ class LauncherViewModel @Inject constructor(
      */
     fun refreshAppSort() {
         appRepository.triggerSortRefresh()
+    }
+
+    /**
+     * 恢复时间段推荐显示（页面 resume 时调用）
+     * 如果有推荐数据但 FAB 被隐藏了，恢复显示
+     */
+    fun restoreTimeRecommendation() {
+        if (_timeBasedRecommendations.value.isNotEmpty() && !_showTimeRecommendation.value) {
+            _showTimeRecommendation.value = true
+        }
     }
 
     /**

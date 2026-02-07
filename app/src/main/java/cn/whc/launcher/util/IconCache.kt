@@ -9,12 +9,13 @@ import androidx.core.graphics.drawable.toBitmap
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * 应用图标内存缓存
- * 使用 LRU 策略缓存最近使用的 100 个图标
+ * 使用 LRU 策略缓存图标，限制总内存 16MB
  */
 @Singleton
 class IconCache @Inject constructor(
@@ -22,9 +23,17 @@ class IconCache @Inject constructor(
 ) {
     private val packageManager: PackageManager = context.packageManager
 
-    // LRU 缓存：最多 100 个图标，每个图标约 100KB (64x64 ARGB_8888)
-    private val cache = object : LruCache<String, Bitmap>(100) {
-        override fun sizeOf(key: String, value: Bitmap): Int = 1
+    companion object {
+        private const val TAG = "IconCache"
+        private const val MAX_CACHE_SIZE_KB = 16 * 1024  // 16MB
+    }
+
+    // LRU 缓存：基于字节数计算，限制总内存 16MB
+    private val cache = object : LruCache<String, Bitmap>(MAX_CACHE_SIZE_KB) {
+        override fun sizeOf(key: String, value: Bitmap): Int {
+            // 返回 KB 数
+            return value.byteCount / 1024
+        }
     }
 
     /**
@@ -61,7 +70,10 @@ class IconCache @Inject constructor(
      */
     private fun loadIcon(componentKey: String): Bitmap? {
         val parts = componentKey.split("/", limit = 2)
-        if (parts.size != 2) return null
+        if (parts.size != 2) {
+            Timber.tag(TAG).w("Invalid componentKey format: %s", componentKey)
+            return null
+        }
 
         val packageName = parts[0]
         val activityName = parts[1]
@@ -73,10 +85,12 @@ class IconCache @Inject constructor(
             )
             activityInfo.loadIcon(packageManager).toBitmap()
         } catch (e: Exception) {
+            Timber.tag(TAG).d(e, "Activity icon not found, trying app icon: %s", componentKey)
             // 回退到应用图标
             try {
                 packageManager.getApplicationIcon(packageName).toBitmap()
             } catch (e2: Exception) {
+                Timber.tag(TAG).w(e2, "Failed to load icon for: %s", componentKey)
                 null
             }
         }

@@ -8,6 +8,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -69,6 +70,15 @@ class HomePageCache @Inject constructor(
         encodeDefaults = true
     }
 
+    companion object {
+        private const val TAG = "HomePageCache"
+        private const val CACHE_FILE_NAME = "home_page_cache.json"
+        /** 默认缓存有效期: 24 小时 */
+        const val DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000L
+        /** 评分缓存有效期: 5 分钟 (与 AppRepository 保持一致) */
+        const val SCORE_CACHE_MAX_AGE_MS = 5 * 60 * 1000L
+    }
+
     /**
      * 读取缓存的首页快照
      * @param maxAgeMs 缓存最大有效期 (毫秒)，默认 24 小时
@@ -84,6 +94,7 @@ class HomePageCache @Inject constructor(
 
                 // 检查版本兼容性
                 if (snapshot.version != HomePageSnapshot.CACHE_VERSION) {
+                    Timber.tag(TAG).d("Cache version mismatch, clearing cache")
                     cacheFile.delete()
                     return@withContext null
                 }
@@ -91,12 +102,14 @@ class HomePageCache @Inject constructor(
                 // 检查是否过期
                 val age = System.currentTimeMillis() - snapshot.timestamp
                 if (age > maxAgeMs) {
+                    Timber.tag(TAG).d("Cache expired (age: %d ms)", age)
                     return@withContext null
                 }
 
+                Timber.tag(TAG).d("Cache loaded successfully (age: %d ms)", age)
                 snapshot
             } catch (e: Exception) {
-                // 解析失败，删除损坏的缓存
+                Timber.tag(TAG).w(e, "Failed to load cache, deleting corrupted file")
                 cacheFile.delete()
                 null
             }
@@ -111,8 +124,9 @@ class HomePageCache @Inject constructor(
             try {
                 val content = json.encodeToString(HomePageSnapshot.serializer(), snapshot)
                 cacheFile.writeText(content)
+                Timber.tag(TAG).d("Cache saved (size: %d bytes)", content.length)
             } catch (e: Exception) {
-                // 写入失败，静默忽略
+                Timber.tag(TAG).w(e, "Failed to save cache")
             }
         }
     }
@@ -130,6 +144,7 @@ class HomePageCache @Inject constructor(
     suspend fun clear() = withContext(Dispatchers.IO) {
         mutex.withLock {
             cacheFile.delete()
+            Timber.tag(TAG).d("Cache cleared")
         }
     }
 
@@ -137,12 +152,4 @@ class HomePageCache @Inject constructor(
      * 获取缓存文件大小 (字节)
      */
     fun getCacheSize(): Long = cacheFile.length()
-
-    companion object {
-        private const val CACHE_FILE_NAME = "home_page_cache.json"
-        /** 默认缓存有效期: 24 小时 */
-        const val DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000L
-        /** 评分缓存有效期: 5 分钟 (与 AppRepository 保持一致) */
-        const val SCORE_CACHE_MAX_AGE_MS = 5 * 60 * 1000L
-    }
 }

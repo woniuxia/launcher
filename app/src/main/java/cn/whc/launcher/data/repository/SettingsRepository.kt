@@ -113,6 +113,22 @@ class SettingsRepository @Inject constructor(
         )
     }
 
+    /**
+     * 独立的布局设置 Flow (用于 homeApps/frequentApps 订阅，避免其他设置变化触发重新计算)
+     */
+    val layoutSettings: Flow<LayoutSettings> = dataStore.data.map { prefs ->
+        LayoutSettings(
+            columns = prefs[COLUMNS_KEY] ?: 4,
+            rows = prefs[ROWS_KEY] ?: 4,
+            iconSize = prefs[ICON_SIZE_KEY] ?: 56,
+            iconSpacing = prefs[ICON_SPACING_KEY] ?: 16,
+            verticalOffset = prefs[VERTICAL_OFFSET_KEY] ?: 0,
+            homeDisplayCount = prefs[HOME_DISPLAY_COUNT_KEY] ?: 16,
+            drawerFrequentCount = prefs[DRAWER_FREQUENT_COUNT_KEY] ?: 5,
+            textSize = prefs[TEXT_SIZE_KEY] ?: 12
+        )
+    }
+
     suspend fun updateLayoutSettings(layout: LayoutSettings) {
         dataStore.edit { prefs ->
             prefs[COLUMNS_KEY] = layout.columns

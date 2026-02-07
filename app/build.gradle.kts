@@ -98,6 +98,9 @@ dependencies {
     // Kotlinx Serialization
     implementation(libs.kotlinx.serialization.json)
 
+    // Timber
+    implementation(libs.timber)
+
     // Test
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
