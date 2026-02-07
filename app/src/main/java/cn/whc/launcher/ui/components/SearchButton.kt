@@ -43,7 +43,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -54,7 +53,6 @@ import cn.whc.launcher.ui.theme.BorderLight
 import cn.whc.launcher.ui.theme.OnSurfaceTertiary
 import cn.whc.launcher.ui.theme.PrimaryBlue
 import cn.whc.launcher.ui.theme.PrimaryBlueDark
-import cn.whc.launcher.ui.theme.SecondaryPurple
 import cn.whc.launcher.ui.theme.ShadowColor
 import cn.whc.launcher.ui.theme.SurfaceMedium
 
@@ -118,14 +116,10 @@ fun FloatingSearchButton(
                             elevation = 12.dp,
                             shape = CircleShape,
                             ambientColor = ShadowColor,
-                            spotColor = PrimaryBlueDark.copy(alpha = 0.4f)
+                            spotColor = Color.Black.copy(alpha = 0.2f)
                         )
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(PrimaryBlue, SecondaryPurple)
-                            )
-                        )
+                        .background(Color.White.copy(alpha = 0.3f))
                         .border(
                             width = 1.dp,
                             color = Color.White.copy(alpha = 0.15f),

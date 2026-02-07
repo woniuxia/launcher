@@ -11,7 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -157,12 +155,7 @@ fun TimeBasedRecommendation(
         90.0 * PI / 180.0    // 下
     )
 
-    // 动态取色
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val secondaryContainerColor = MaterialTheme.colorScheme.secondaryContainer
-
     // FAB 交互状态
-    val interactionSource = remember { MutableInteractionSource() }
     val currentFabAlpha = if (isDragging) 1f else fabAlphaAnim.value
 
     // FAB 始终显示（只要 visible 为 true）
@@ -188,7 +181,6 @@ fun TimeBasedRecommendation(
 
                     RecommendationIcon(
                         app = app,
-                        backgroundColor = secondaryContainerColor.copy(alpha = 0.85f),
                         onClick = { onAppClick(app) },
                         modifier = Modifier
                             .offset { IntOffset(offsetX, offsetY) }
@@ -204,11 +196,11 @@ fun TimeBasedRecommendation(
                         .shadow(
                             elevation = 6.dp,
                             shape = CircleShape,
-                            ambientColor = primaryColor.copy(alpha = 0.3f),
-                            spotColor = primaryColor.copy(alpha = 0.3f)
+                            ambientColor = Color.Black.copy(alpha = 0.2f),
+                            spotColor = Color.Black.copy(alpha = 0.2f)
                         )
                         .clip(CircleShape)
-                        .background(primaryColor.copy(alpha = 0.9f))
+                        .background(Color.White.copy(alpha = 0.3f))
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = {
@@ -276,7 +268,6 @@ fun TimeBasedRecommendation(
 @Composable
 private fun RecommendationIcon(
     app: AppInfo,
-    backgroundColor: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -284,8 +275,6 @@ private fun RecommendationIcon(
     var icon by remember(app.packageName, app.activityName) {
         mutableStateOf<android.graphics.Bitmap?>(null)
     }
-
-    val primaryColor = MaterialTheme.colorScheme.primary
 
     LaunchedEffect(app.packageName, app.activityName) {
         icon = withContext(Dispatchers.IO) {
@@ -317,14 +306,6 @@ private fun RecommendationIcon(
 
     Box(
         modifier = modifier
-            .shadow(
-                elevation = 4.dp,
-                shape = CircleShape,
-                ambientColor = primaryColor.copy(alpha = 0.2f),
-                spotColor = primaryColor.copy(alpha = 0.2f)
-            )
-            .clip(CircleShape)
-            .background(backgroundColor)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -332,9 +313,7 @@ private fun RecommendationIcon(
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = app.displayName,
-                modifier = Modifier
-                    .padding(4.dp)
-                    .size(36.dp),
+                modifier = Modifier.size(44.dp),
                 contentScale = ContentScale.Fit
             )
         }
