@@ -44,7 +44,7 @@ fun HomePage(
     onLetterSelected: (String) -> Unit,
     showFavorites: Boolean = false,
     onFavoritesClick: (() -> Unit)? = null,
-    onSettingsClick: (() -> Unit)? = null,
+    showSettings: Boolean = false,
     showTimeRecommendation: Boolean = false,
     timeRecommendations: List<AppInfo> = emptyList(),
     onRecommendedAppClick: (AppInfo) -> Unit = {},
@@ -123,8 +123,7 @@ fun HomePage(
                     hapticEnabled = settings.gesture.hapticFeedback,
                     showFavorites = showFavorites,
                     onFavoritesClick = onFavoritesClick,
-                    showSettings = onSettingsClick != null,
-                    onSettingsClick = onSettingsClick,
+                    showSettings = showSettings,
                     modifier = Modifier
                         .fillMaxHeight(0.67f)
                         .padding(vertical = 32.dp, horizontal = 4.dp)

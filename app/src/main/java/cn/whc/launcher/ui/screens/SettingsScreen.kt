@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -65,7 +66,6 @@ import kotlinx.coroutines.withContext
 /**
  * 设置页面
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: LauncherViewModel,
@@ -73,10 +73,34 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsState()
 
-    // 子页面状态: null=主设置页, "appManage"=应用管理
     var currentSubPage by remember { mutableStateOf<String?>(null) }
 
     when (currentSubPage) {
+        "layout" -> LayoutSettingsPage(
+            viewModel = viewModel,
+            settings = settings,
+            onNavigateBack = { currentSubPage = null }
+        )
+        "appearance" -> AppearanceSettingsPage(
+            viewModel = viewModel,
+            settings = settings,
+            onNavigateBack = { currentSubPage = null }
+        )
+        "clock" -> ClockSettingsPage(
+            viewModel = viewModel,
+            settings = settings,
+            onNavigateBack = { currentSubPage = null }
+        )
+        "search" -> SearchSettingsPage(
+            viewModel = viewModel,
+            settings = settings,
+            onNavigateBack = { currentSubPage = null }
+        )
+        "gesture" -> GestureSettingsPage(
+            viewModel = viewModel,
+            settings = settings,
+            onNavigateBack = { currentSubPage = null }
+        )
         "appManage" -> AppManageScreen(
             viewModel = viewModel,
             onNavigateBack = { currentSubPage = null }
@@ -85,22 +109,587 @@ fun SettingsScreen(
             viewModel = viewModel,
             settings = settings,
             onNavigateBack = onNavigateBack,
-            onNavigateToAppManage = { currentSubPage = "appManage" }
+            onNavigateTo = { currentSubPage = it }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ============================================================
+// 设置主页 (分类导航)
+// ============================================================
+
 @Composable
 private fun SettingsMainScreen(
     viewModel: LauncherViewModel,
     settings: AppSettings,
     onNavigateBack: () -> Unit,
-    onNavigateToAppManage: () -> Unit
+    onNavigateTo: (String) -> Unit
 ) {
     val blacklist by viewModel.blacklist.collectAsState()
     val graylist by viewModel.graylist.collectAsState()
 
+    SettingsSubPage(title = "设置", onNavigateBack = onNavigateBack) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            // 个性化
+            item { SettingsSection(title = "个性化") }
+
+            item {
+                NavigationSettingItem(
+                    title = "布局设置",
+                    subtitle = "${settings.layout.columns}x${settings.layout.rows} 网格，图标 ${settings.layout.iconSize}dp",
+                    onClick = { onNavigateTo("layout") }
+                )
+            }
+
+            item {
+                NavigationSettingItem(
+                    title = "外观设置",
+                    subtitle = when (settings.appearance.theme) {
+                        Theme.LIGHT -> "浅色主题"
+                        Theme.DARK -> "深色主题"
+                        Theme.SYSTEM -> "跟随系统"
+                    },
+                    onClick = { onNavigateTo("appearance") }
+                )
+            }
+
+            // 功能
+            item { SettingsSection(title = "功能") }
+
+            item {
+                NavigationSettingItem(
+                    title = "时间日期",
+                    subtitle = if (settings.clock.is24Hour) "24小时制" else "12小时制",
+                    onClick = { onNavigateTo("clock") }
+                )
+            }
+
+            item {
+                NavigationSettingItem(
+                    title = "搜索",
+                    subtitle = if (settings.search.enableSearch) "已启用" else "已关闭",
+                    onClick = { onNavigateTo("search") }
+                )
+            }
+
+            item {
+                NavigationSettingItem(
+                    title = "手势",
+                    subtitle = "灵敏度：${
+                        when (settings.gesture.swipeSensitivity) {
+                            SwipeSensitivity.LOW -> "低"
+                            SwipeSensitivity.MEDIUM -> "中等"
+                            SwipeSensitivity.HIGH -> "高"
+                        }
+                    }",
+                    onClick = { onNavigateTo("gesture") }
+                )
+            }
+
+            // 管理
+            item { SettingsSection(title = "管理") }
+
+            item {
+                NavigationSettingItem(
+                    title = "应用显示管理",
+                    subtitle = "黑名单 ${blacklist.size} 个，灰名单 ${graylist.size} 个",
+                    onClick = { onNavigateTo("appManage") }
+                )
+            }
+
+            // 关于
+            item { SettingsSection(title = "关于") }
+
+            item {
+                TextSettingItem(
+                    title = "版本",
+                    value = "1.0.0"
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+// ============================================================
+// 各分类子页面
+// ============================================================
+
+@Composable
+private fun LayoutSettingsPage(
+    viewModel: LauncherViewModel,
+    settings: AppSettings,
+    onNavigateBack: () -> Unit
+) {
+    SettingsSubPage(title = "布局设置", onNavigateBack = onNavigateBack) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                SliderSettingItem(
+                    title = "网格列数",
+                    value = settings.layout.columns.toFloat(),
+                    valueRange = 3f..6f,
+                    steps = 2,
+                    valueLabel = "${settings.layout.columns} 列",
+                    onValueChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(columns = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "网格行数",
+                    value = settings.layout.rows.toFloat(),
+                    valueRange = 2f..6f,
+                    steps = 3,
+                    valueLabel = "${settings.layout.rows} 行",
+                    onValueChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(rows = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "图标大小",
+                    value = settings.layout.iconSize.toFloat(),
+                    valueRange = 48f..72f,
+                    steps = 5,
+                    valueLabel = "${settings.layout.iconSize}px",
+                    onValueChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(iconSize = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "图标间距",
+                    value = settings.layout.iconSpacing.toFloat(),
+                    valueRange = 8f..32f,
+                    steps = 5,
+                    valueLabel = "${settings.layout.iconSpacing}px",
+                    onValueChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(iconSpacing = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "垂直偏移",
+                    value = settings.layout.verticalOffset.toFloat(),
+                    valueRange = -200f..200f,
+                    steps = 19,
+                    valueLabel = "${settings.layout.verticalOffset}px",
+                    onValueChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(verticalOffset = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "首页显示数量",
+                    value = settings.layout.homeDisplayCount.toFloat(),
+                    valueRange = 6f..36f,
+                    steps = 14,
+                    valueLabel = "${settings.layout.homeDisplayCount} 个",
+                    onValueChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(homeDisplayCount = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "抽屉常用区数量",
+                    value = settings.layout.drawerFrequentCount.toFloat(),
+                    valueRange = 3f..15f,
+                    steps = 11,
+                    valueLabel = "${settings.layout.drawerFrequentCount} 个",
+                    onValueChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(drawerFrequentCount = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "时间段推荐",
+                    checked = settings.layout.showTimeRecommendation,
+                    onCheckedChange = {
+                        viewModel.updateLayoutSettings(settings.layout.copy(showTimeRecommendation = it))
+                    }
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun AppearanceSettingsPage(
+    viewModel: LauncherViewModel,
+    settings: AppSettings,
+    onNavigateBack: () -> Unit
+) {
+    SettingsSubPage(title = "外观设置", onNavigateBack = onNavigateBack) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                ChoiceSettingItem(
+                    title = "主题模式",
+                    currentValue = when (settings.appearance.theme) {
+                        Theme.LIGHT -> "浅色"
+                        Theme.DARK -> "深色"
+                        Theme.SYSTEM -> "跟随系统"
+                    },
+                    options = listOf("浅色", "深色", "跟随系统"),
+                    onSelect = { index ->
+                        val theme = when (index) {
+                            0 -> Theme.LIGHT
+                            1 -> Theme.DARK
+                            else -> Theme.SYSTEM
+                        }
+                        viewModel.updateAppearanceSettings(settings.appearance.copy(theme = theme))
+                    }
+                )
+            }
+
+            item {
+                ChoiceSettingItem(
+                    title = "背景样式",
+                    currentValue = when (settings.appearance.backgroundType) {
+                        BackgroundType.BLUR -> "模糊"
+                        BackgroundType.SOLID -> "纯色"
+                        BackgroundType.IMAGE -> "壁纸"
+                    },
+                    options = listOf("模糊", "纯色", "壁纸"),
+                    onSelect = { index ->
+                        val type = when (index) {
+                            0 -> BackgroundType.BLUR
+                            1 -> BackgroundType.SOLID
+                            else -> BackgroundType.IMAGE
+                        }
+                        viewModel.updateAppearanceSettings(settings.appearance.copy(backgroundType = type))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "模糊强度",
+                    value = settings.appearance.blurStrength.toFloat(),
+                    valueRange = 0f..50f,
+                    steps = 9,
+                    valueLabel = "${settings.appearance.blurStrength}",
+                    onValueChange = {
+                        viewModel.updateAppearanceSettings(settings.appearance.copy(blurStrength = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SliderSettingItem(
+                    title = "图标圆角",
+                    value = settings.appearance.iconRadius.toFloat(),
+                    valueRange = 0f..32f,
+                    steps = 7,
+                    valueLabel = "${settings.appearance.iconRadius}px",
+                    onValueChange = {
+                        viewModel.updateAppearanceSettings(settings.appearance.copy(iconRadius = it.toInt()))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "图标阴影",
+                    checked = settings.appearance.showShadow,
+                    onCheckedChange = {
+                        viewModel.updateAppearanceSettings(settings.appearance.copy(showShadow = it))
+                    }
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun ClockSettingsPage(
+    viewModel: LauncherViewModel,
+    settings: AppSettings,
+    onNavigateBack: () -> Unit
+) {
+    SettingsSubPage(title = "时间日期设置", onNavigateBack = onNavigateBack) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                SwitchSettingItem(
+                    title = "显示时间",
+                    checked = settings.clock.showTime,
+                    onCheckedChange = {
+                        viewModel.updateClockSettings(settings.clock.copy(showTime = it))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "显示秒数",
+                    checked = settings.clock.showSeconds,
+                    onCheckedChange = {
+                        viewModel.updateClockSettings(settings.clock.copy(showSeconds = it))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "显示日期",
+                    checked = settings.clock.showDate,
+                    onCheckedChange = {
+                        viewModel.updateClockSettings(settings.clock.copy(showDate = it))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "显示农历",
+                    checked = settings.clock.showLunar,
+                    onCheckedChange = {
+                        viewModel.updateClockSettings(settings.clock.copy(showLunar = it))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "显示节气节日",
+                    checked = settings.clock.showFestival,
+                    onCheckedChange = {
+                        viewModel.updateClockSettings(settings.clock.copy(showFestival = it))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "24小时制",
+                    checked = settings.clock.is24Hour,
+                    onCheckedChange = {
+                        viewModel.updateClockSettings(settings.clock.copy(is24Hour = it))
+                    }
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun SearchSettingsPage(
+    viewModel: LauncherViewModel,
+    settings: AppSettings,
+    onNavigateBack: () -> Unit
+) {
+    SettingsSubPage(title = "搜索设置", onNavigateBack = onNavigateBack) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                SwitchSettingItem(
+                    title = "启用搜索",
+                    checked = settings.search.enableSearch,
+                    onCheckedChange = {
+                        viewModel.updateSearchSettings(settings.search.copy(enableSearch = it))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "拼音搜索",
+                    checked = settings.search.enablePinyin,
+                    onCheckedChange = {
+                        viewModel.updateSearchSettings(settings.search.copy(enablePinyin = it))
+                    }
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun GestureSettingsPage(
+    viewModel: LauncherViewModel,
+    settings: AppSettings,
+    onNavigateBack: () -> Unit
+) {
+    SettingsSubPage(title = "手势设置", onNavigateBack = onNavigateBack) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                ChoiceSettingItem(
+                    title = "上滑灵敏度",
+                    currentValue = when (settings.gesture.swipeSensitivity) {
+                        SwipeSensitivity.LOW -> "低"
+                        SwipeSensitivity.MEDIUM -> "中等"
+                        SwipeSensitivity.HIGH -> "高"
+                    },
+                    options = listOf("低", "中等", "高"),
+                    onSelect = { index ->
+                        val sensitivity = when (index) {
+                            0 -> SwipeSensitivity.LOW
+                            1 -> SwipeSensitivity.MEDIUM
+                            else -> SwipeSensitivity.HIGH
+                        }
+                        viewModel.updateGestureSettings(settings.gesture.copy(swipeSensitivity = sensitivity))
+                    }
+                )
+            }
+
+            item {
+                SwitchSettingItem(
+                    title = "震动反馈",
+                    checked = settings.gesture.hapticFeedback,
+                    onCheckedChange = {
+                        viewModel.updateGestureSettings(settings.gesture.copy(hapticFeedback = it))
+                    }
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+// ============================================================
+// 应用显示管理页面
+// ============================================================
+
+@Composable
+private fun AppManageScreen(
+    viewModel: LauncherViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val blacklist by viewModel.blacklist.collectAsState()
+    val graylist by viewModel.graylist.collectAsState()
+    val allAppsGrouped by viewModel.allAppsGrouped.collectAsState()
+
+    val blacklistKeys = blacklist.map { "${it.packageName}/${it.activityName}" }.toSet()
+    val graylistKeys = graylist.map { "${it.packageName}/${it.activityName}" }.toSet()
+
+    val allApps = remember(allAppsGrouped, blacklist) {
+        val visibleApps = allAppsGrouped.values.flatten()
+        val hiddenApps = blacklist
+        (visibleApps + hiddenApps)
+            .distinctBy { "${it.packageName}/${it.activityName}" }
+            .groupBy { it.firstLetter }
+            .toSortedMap(compareBy { if (it == "#") "\uFFFF" else it })
+    }
+
+    SettingsSubPage(title = "应用显示管理", onNavigateBack = onNavigateBack) {
+        // 说明文字
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = "灰名单：不在首页和推荐中显示",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp
+            )
+            Text(
+                text = "黑名单：完全隐藏（自动包含灰名单效果）",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp
+            )
+        }
+
+        // 表头
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.05f))
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = "灰名单",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                modifier = Modifier.width(56.dp),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "黑名单",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                modifier = Modifier.width(56.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            allApps.forEach { (letter, apps) ->
+                item(key = "header_$letter") {
+                    LetterHeader(letter = letter)
+                }
+
+                items(apps, key = { "${it.packageName}/${it.activityName}" }) { app ->
+                    val appKey = "${app.packageName}/${app.activityName}"
+                    val isBlacklisted = appKey in blacklistKeys
+                    val isGraylisted = appKey in graylistKeys || isBlacklisted
+
+                    AppManageItem(
+                        app = app,
+                        isGraylisted = isGraylisted,
+                        isBlacklisted = isBlacklisted,
+                        onGraylistChange = { checked ->
+                            if (checked) {
+                                viewModel.addToGraylist(app.packageName, app.activityName)
+                            } else {
+                                viewModel.removeFromGraylist(app.packageName, app.activityName)
+                            }
+                        },
+                        onBlacklistChange = { checked ->
+                            if (checked) {
+                                viewModel.addToBlacklist(app.packageName, app.activityName)
+                            } else {
+                                viewModel.removeFromBlacklist(app.packageName, app.activityName)
+                            }
+                        }
+                    )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(32.dp)) }
+        }
+    }
+}
+
+// ============================================================
+// 公共页面骨架
+// ============================================================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsSubPage(
+    title: String,
+    onNavigateBack: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -111,11 +700,10 @@ private fun SettingsMainScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // 顶部栏
             TopAppBar(
                 title = {
                     Text(
-                        text = "设置",
+                        text = title,
                         color = Color.White,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
@@ -134,352 +722,14 @@ private fun SettingsMainScreen(
                     containerColor = Color.Transparent
                 )
             )
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // 布局设置
-                item {
-                    SettingsSection(title = "布局设置")
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "网格列数",
-                        value = settings.layout.columns.toFloat(),
-                        valueRange = 3f..6f,
-                        steps = 2,
-                        valueLabel = "${settings.layout.columns} 列",
-                        onValueChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(columns = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "网格行数",
-                        value = settings.layout.rows.toFloat(),
-                        valueRange = 2f..6f,
-                        steps = 3,
-                        valueLabel = "${settings.layout.rows} 行",
-                        onValueChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(rows = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "图标大小",
-                        value = settings.layout.iconSize.toFloat(),
-                        valueRange = 48f..72f,
-                        steps = 5,
-                        valueLabel = "${settings.layout.iconSize}px",
-                        onValueChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(iconSize = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "图标间距",
-                        value = settings.layout.iconSpacing.toFloat(),
-                        valueRange = 8f..32f,
-                        steps = 5,
-                        valueLabel = "${settings.layout.iconSpacing}px",
-                        onValueChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(iconSpacing = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "垂直偏移",
-                        value = settings.layout.verticalOffset.toFloat(),
-                        valueRange = -200f..200f,
-                        steps = 19,
-                        valueLabel = "${settings.layout.verticalOffset}px",
-                        onValueChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(verticalOffset = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "首页显示数量",
-                        value = settings.layout.homeDisplayCount.toFloat(),
-                        valueRange = 6f..36f,
-                        steps = 14,
-                        valueLabel = "${settings.layout.homeDisplayCount} 个",
-                        onValueChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(homeDisplayCount = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "抽屉常用区数量",
-                        value = settings.layout.drawerFrequentCount.toFloat(),
-                        valueRange = 3f..15f,
-                        steps = 11,
-                        valueLabel = "${settings.layout.drawerFrequentCount} 个",
-                        onValueChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(drawerFrequentCount = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "时间段推荐",
-                        checked = settings.layout.showTimeRecommendation,
-                        onCheckedChange = {
-                            viewModel.updateLayoutSettings(settings.layout.copy(showTimeRecommendation = it))
-                        }
-                    )
-                }
-
-                // 外观设置
-                item {
-                    SettingsSection(title = "外观设置")
-                }
-
-                item {
-                    ChoiceSettingItem(
-                        title = "主题模式",
-                        currentValue = when (settings.appearance.theme) {
-                            Theme.LIGHT -> "浅色"
-                            Theme.DARK -> "深色"
-                            Theme.SYSTEM -> "跟随系统"
-                        },
-                        options = listOf("浅色", "深色", "跟随系统"),
-                        onSelect = { index ->
-                            val theme = when (index) {
-                                0 -> Theme.LIGHT
-                                1 -> Theme.DARK
-                                else -> Theme.SYSTEM
-                            }
-                            viewModel.updateAppearanceSettings(settings.appearance.copy(theme = theme))
-                        }
-                    )
-                }
-
-                item {
-                    ChoiceSettingItem(
-                        title = "背景样式",
-                        currentValue = when (settings.appearance.backgroundType) {
-                            BackgroundType.BLUR -> "模糊"
-                            BackgroundType.SOLID -> "纯色"
-                            BackgroundType.IMAGE -> "壁纸"
-                        },
-                        options = listOf("模糊", "纯色", "壁纸"),
-                        onSelect = { index ->
-                            val type = when (index) {
-                                0 -> BackgroundType.BLUR
-                                1 -> BackgroundType.SOLID
-                                else -> BackgroundType.IMAGE
-                            }
-                            viewModel.updateAppearanceSettings(settings.appearance.copy(backgroundType = type))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "模糊强度",
-                        value = settings.appearance.blurStrength.toFloat(),
-                        valueRange = 0f..50f,
-                        steps = 9,
-                        valueLabel = "${settings.appearance.blurStrength}",
-                        onValueChange = {
-                            viewModel.updateAppearanceSettings(settings.appearance.copy(blurStrength = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SliderSettingItem(
-                        title = "图标圆角",
-                        value = settings.appearance.iconRadius.toFloat(),
-                        valueRange = 0f..32f,
-                        steps = 7,
-                        valueLabel = "${settings.appearance.iconRadius}px",
-                        onValueChange = {
-                            viewModel.updateAppearanceSettings(settings.appearance.copy(iconRadius = it.toInt()))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "图标阴影",
-                        checked = settings.appearance.showShadow,
-                        onCheckedChange = {
-                            viewModel.updateAppearanceSettings(settings.appearance.copy(showShadow = it))
-                        }
-                    )
-                }
-
-                // 时间日期设置
-                item {
-                    SettingsSection(title = "时间日期设置")
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "显示时间",
-                        checked = settings.clock.showTime,
-                        onCheckedChange = {
-                            viewModel.updateClockSettings(settings.clock.copy(showTime = it))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "显示秒数",
-                        checked = settings.clock.showSeconds,
-                        onCheckedChange = {
-                            viewModel.updateClockSettings(settings.clock.copy(showSeconds = it))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "显示日期",
-                        checked = settings.clock.showDate,
-                        onCheckedChange = {
-                            viewModel.updateClockSettings(settings.clock.copy(showDate = it))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "显示农历",
-                        checked = settings.clock.showLunar,
-                        onCheckedChange = {
-                            viewModel.updateClockSettings(settings.clock.copy(showLunar = it))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "显示节气节日",
-                        checked = settings.clock.showFestival,
-                        onCheckedChange = {
-                            viewModel.updateClockSettings(settings.clock.copy(showFestival = it))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "24小时制",
-                        checked = settings.clock.is24Hour,
-                        onCheckedChange = {
-                            viewModel.updateClockSettings(settings.clock.copy(is24Hour = it))
-                        }
-                    )
-                }
-
-                // 搜索设置
-                item {
-                    SettingsSection(title = "搜索设置")
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "启用搜索",
-                        checked = settings.search.enableSearch,
-                        onCheckedChange = {
-                            viewModel.updateSearchSettings(settings.search.copy(enableSearch = it))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "拼音搜索",
-                        checked = settings.search.enablePinyin,
-                        onCheckedChange = {
-                            viewModel.updateSearchSettings(settings.search.copy(enablePinyin = it))
-                        }
-                    )
-                }
-
-                // 手势设置
-                item {
-                    SettingsSection(title = "手势设置")
-                }
-
-                item {
-                    ChoiceSettingItem(
-                        title = "上滑灵敏度",
-                        currentValue = when (settings.gesture.swipeSensitivity) {
-                            SwipeSensitivity.LOW -> "低"
-                            SwipeSensitivity.MEDIUM -> "中等"
-                            SwipeSensitivity.HIGH -> "高"
-                        },
-                        options = listOf("低", "中等", "高"),
-                        onSelect = { index ->
-                            val sensitivity = when (index) {
-                                0 -> SwipeSensitivity.LOW
-                                1 -> SwipeSensitivity.MEDIUM
-                                else -> SwipeSensitivity.HIGH
-                            }
-                            viewModel.updateGestureSettings(settings.gesture.copy(swipeSensitivity = sensitivity))
-                        }
-                    )
-                }
-
-                item {
-                    SwitchSettingItem(
-                        title = "震动反馈",
-                        checked = settings.gesture.hapticFeedback,
-                        onCheckedChange = {
-                            viewModel.updateGestureSettings(settings.gesture.copy(hapticFeedback = it))
-                        }
-                    )
-                }
-
-                // 应用管理设置
-                item {
-                    SettingsSection(title = "应用管理")
-                }
-
-                item {
-                    NavigationSettingItem(
-                        title = "应用显示管理",
-                        subtitle = "黑名单 ${blacklist.size} 个，灰名单 ${graylist.size} 个",
-                        onClick = onNavigateToAppManage
-                    )
-                }
-
-                // 关于
-                item {
-                    SettingsSection(title = "关于")
-                }
-
-                item {
-                    TextSettingItem(
-                        title = "版本",
-                        value = "1.0.0"
-                    )
-                }
-
-                item { Spacer(modifier = Modifier.height(32.dp)) }
-            }
+            content()
         }
     }
 }
+
+// ============================================================
+// 通用设置项组件
+// ============================================================
 
 @Composable
 private fun SettingsSection(title: String) {
@@ -658,7 +908,7 @@ private fun NavigationSettingItem(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 color = Color.White,
@@ -678,157 +928,10 @@ private fun NavigationSettingItem(
     }
 }
 
-/**
- * 应用显示管理页面
- * 合并黑名单和灰名单管理，按首字母分组显示
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AppManageScreen(
-    viewModel: LauncherViewModel,
-    onNavigateBack: () -> Unit
-) {
-    val blacklist by viewModel.blacklist.collectAsState()
-    val graylist by viewModel.graylist.collectAsState()
-    val allAppsGrouped by viewModel.allAppsGrouped.collectAsState()
+// ============================================================
+// 应用管理列表组件
+// ============================================================
 
-    // 构建黑名单和灰名单的 key 集合
-    val blacklistKeys = blacklist.map { "${it.packageName}/${it.activityName}" }.toSet()
-    val graylistKeys = graylist.map { "${it.packageName}/${it.activityName}" }.toSet()
-
-    // 合并所有应用（包括黑名单中的应用）
-    val allApps = remember(allAppsGrouped, blacklist) {
-        val visibleApps = allAppsGrouped.values.flatten()
-        val hiddenApps = blacklist
-        (visibleApps + hiddenApps)
-            .distinctBy { "${it.packageName}/${it.activityName}" }
-            .groupBy { it.firstLetter }
-            .toSortedMap(compareBy { if (it == "#") "\uFFFF" else it })
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-        ) {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "应用显示管理",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
-
-            // 说明文字
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "灰名单：不在首页和推荐中显示",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 12.sp
-                )
-                Text(
-                    text = "黑名单：完全隐藏（自动包含灰名单效果）",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 12.sp
-                )
-            }
-
-            // 表头
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Text(
-                    text = "灰名单",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    modifier = Modifier.width(56.dp),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "黑名单",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    modifier = Modifier.width(56.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                allApps.forEach { (letter, apps) ->
-                    // 首字母分组头
-                    item(key = "header_$letter") {
-                        LetterHeader(letter = letter)
-                    }
-
-                    // 该分组下的应用
-                    items(apps, key = { "${it.packageName}/${it.activityName}" }) { app ->
-                        val appKey = "${app.packageName}/${app.activityName}"
-                        val isBlacklisted = appKey in blacklistKeys
-                        val isGraylisted = appKey in graylistKeys || isBlacklisted
-
-                        AppManageItem(
-                            app = app,
-                            isGraylisted = isGraylisted,
-                            isBlacklisted = isBlacklisted,
-                            onGraylistChange = { checked ->
-                                if (checked) {
-                                    viewModel.addToGraylist(app.packageName, app.activityName)
-                                } else {
-                                    viewModel.removeFromGraylist(app.packageName, app.activityName)
-                                }
-                            },
-                            onBlacklistChange = { checked ->
-                                if (checked) {
-                                    viewModel.addToBlacklist(app.packageName, app.activityName)
-                                    // 黑名单自动包含灰名单效果，但不需要显式添加到灰名单
-                                } else {
-                                    viewModel.removeFromBlacklist(app.packageName, app.activityName)
-                                }
-                            }
-                        )
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(32.dp)) }
-            }
-        }
-    }
-}
-
-/**
- * 首字母分组头
- */
 @Composable
 private fun LetterHeader(letter: String) {
     Box(
@@ -846,9 +949,6 @@ private fun LetterHeader(letter: String) {
     }
 }
 
-/**
- * 应用管理列表项
- */
 @Composable
 private fun AppManageItem(
     app: AppInfo,
@@ -876,7 +976,6 @@ private fun AppManageItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 应用图标
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -894,7 +993,6 @@ private fun AppManageItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // 应用名称
         Text(
             text = app.displayName,
             color = if (isBlacklisted) Color.White.copy(alpha = 0.5f) else Color.White,
@@ -903,7 +1001,6 @@ private fun AppManageItem(
             maxLines = 1
         )
 
-        // 灰名单开关
         Box(
             modifier = Modifier.width(56.dp),
             contentAlignment = Alignment.Center
@@ -911,7 +1008,6 @@ private fun AppManageItem(
             Checkbox(
                 checked = isGraylisted,
                 onCheckedChange = { checked ->
-                    // 如果是黑名单，不允许取消灰名单
                     if (!isBlacklisted) {
                         onGraylistChange(checked)
                     }
@@ -929,7 +1025,6 @@ private fun AppManageItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 黑名单开关
         Box(
             modifier = Modifier.width(56.dp),
             contentAlignment = Alignment.Center

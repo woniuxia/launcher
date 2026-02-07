@@ -1,12 +1,13 @@
 package cn.whc.launcher.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,32 +22,40 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Divider
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.whc.launcher.data.model.AppInfo
-import cn.whc.launcher.data.model.AppListItem
 import cn.whc.launcher.data.model.AppSettings
 import cn.whc.launcher.ui.components.AlphabetIndexBar
 import cn.whc.launcher.ui.components.AppListItem
 import cn.whc.launcher.ui.components.LetterHeader
+import cn.whc.launcher.ui.components.SYMBOL_SETTINGS
+import cn.whc.launcher.ui.theme.OnSurfacePrimary
 import cn.whc.launcher.ui.theme.OnSurfaceSecondary
 import cn.whc.launcher.ui.theme.PrimaryBlue
 import cn.whc.launcher.ui.theme.SecondaryPurple
+import cn.whc.launcher.ui.theme.ShadowColorLight
 import cn.whc.launcher.ui.theme.SurfaceLight
 import kotlinx.coroutines.launch
 
@@ -85,7 +94,8 @@ fun AppDrawerPage(
                 }
             }
 
-            // 设置入口
+            // 设置入口（带表头）
+            add(DrawerListItem.LetterHeader(SYMBOL_SETTINGS))
             add(DrawerListItem.SettingsItem)
         }
     }
@@ -103,7 +113,7 @@ fun AppDrawerPage(
 
     // 可用字母集合
     val availableLetters by remember(allAppsGrouped) {
-        derivedStateOf { allAppsGrouped.keys }
+        derivedStateOf { allAppsGrouped.keys + SYMBOL_SETTINGS }
     }
 
     Box(
@@ -201,7 +211,6 @@ fun AppDrawerPage(
                         }
                     },
                     showSettings = true,
-                    onSettingsClick = onSettingsClick,
                     modifier = Modifier
                         .fillMaxHeight(0.67f)
                         .padding(vertical = 32.dp, horizontal = 4.dp)
@@ -247,41 +256,80 @@ private fun FrequentSectionHeader() {
 }
 
 /**
- * 设置入口项 - Material You 风格
+ * 设置入口项 - 与 AppListItem 保持一致的视觉风格
  */
 @Composable
 private fun SettingsItem(onClick: () -> Unit) {
+    var isPressed by remember { mutableStateOf(false) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
+        label = "settingsScale"
+    )
+
+    val bgAlpha by animateFloatAsState(
+        targetValue = if (isPressed) 0.08f else 0f,
+        animationSpec = tween(100),
+        label = "settingsBg"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(60.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .background(Color.White.copy(alpha = bgAlpha))
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                    },
+                    onTap = { onClick() }
+                )
+            }
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .background(
-                    color = SurfaceLight,
-                    shape = RoundedCornerShape(10.dp)
-                ),
+                .size(48.dp)
+                .shadow(
+                    elevation = 2.dp,
+                    shape = RoundedCornerShape(12.dp),
+                    ambientColor = ShadowColorLight
+                )
+                .clip(RoundedCornerShape(12.dp))
+                .background(SurfaceLight),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = "设置",
                 tint = OnSurfaceSecondary,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         Text(
             text = "设置",
-            color = OnSurfaceSecondary,
-            fontSize = 16.sp,
-            letterSpacing = 0.15.sp
+            style = TextStyle(
+                color = OnSurfacePrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Normal,
+                letterSpacing = 0.15.sp,
+                shadow = Shadow(
+                    color = Color.Black.copy(alpha = 0.3f),
+                    offset = Offset(0f, 1f),
+                    blurRadius = 2f
+                )
+            )
         )
     }
 }

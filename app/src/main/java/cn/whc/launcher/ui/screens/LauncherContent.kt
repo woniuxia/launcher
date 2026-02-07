@@ -28,6 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.ui.components.FloatingSearchButton
+import cn.whc.launcher.ui.components.SYMBOL_SETTINGS
 import cn.whc.launcher.ui.components.WallpaperBackground
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
 import cn.whc.launcher.util.IconCache
@@ -95,12 +96,14 @@ fun LauncherContent(
             index++ // LetterHeader
             index += apps.size // App items
         }
+        // 设置入口
+        positions[SYMBOL_SETTINGS] = index
         positions
     }
 
     // 可用字母集合
     val availableLetters by remember(allAppsGrouped) {
-        derivedStateOf { allAppsGrouped.keys }
+        derivedStateOf { allAppsGrouped.keys + SYMBOL_SETTINGS }
     }
 
     // 标记是否通过字母索引跳转（避免重置列表位置）
@@ -182,7 +185,7 @@ fun LauncherContent(
                                 drawerListState.scrollToItem(0)
                             }
                         },
-                        onSettingsClick = onNavigateToSettings,
+                        showSettings = true,
                         showTimeRecommendation = showTimeRecommendation,
                         timeRecommendations = timeBasedRecommendations,
                         onRecommendedAppClick = { viewModel.launchRecommendedApp(it) },

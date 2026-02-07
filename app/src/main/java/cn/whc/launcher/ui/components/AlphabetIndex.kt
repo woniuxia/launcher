@@ -100,7 +100,6 @@ fun AlphabetIndexBar(
     val handleLetterSelected: (String) -> Unit = { letter ->
         when (letter) {
             SYMBOL_FAVORITES -> onFavoritesClick?.invoke()
-            SYMBOL_SETTINGS -> onSettingsClick?.invoke()
             else -> onLetterSelected(letter)
         }
     }
