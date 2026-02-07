@@ -234,6 +234,16 @@ private fun SettingsMainScreen(
                     )
                 }
 
+                item {
+                    SwitchSettingItem(
+                        title = "时间段推荐",
+                        checked = settings.layout.showTimeRecommendation,
+                        onCheckedChange = {
+                            viewModel.updateLayoutSettings(settings.layout.copy(showTimeRecommendation = it))
+                        }
+                    )
+                }
+
                 // 外观设置
                 item {
                     SettingsSection(title = "外观设置")

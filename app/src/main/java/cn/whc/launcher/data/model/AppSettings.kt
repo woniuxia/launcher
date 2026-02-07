@@ -19,7 +19,8 @@ data class LayoutSettings(
     val verticalOffset: Int = 0,
     val homeDisplayCount: Int = 16,
     val drawerFrequentCount: Int = 5,
-    val textSize: Int = 12
+    val textSize: Int = 12,
+    val showTimeRecommendation: Boolean = true
 )
 
 data class AppearanceSettings(

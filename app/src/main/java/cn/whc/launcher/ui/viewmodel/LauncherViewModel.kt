@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -134,12 +135,14 @@ class LauncherViewModel @Inject constructor(
     init {
         // 冷启动优化：优先从缓存加载，立即显示首页
         viewModelScope.launch {
+            // 读取持久化设置，判断是否需要加载推荐数据
+            val enableRecommendation = settingsRepository.settings.first().layout.showTimeRecommendation
             val cache = appRepository.loadHomePageFromCache()
 
             if (cache != null) {
                 // 有缓存：立即使用缓存数据显示首页
                 _homeApps.value = cache.homeApps.map { with(appRepository) { it.toAppInfo() } }
-                if (cache.timeRecommendations.isNotEmpty()) {
+                if (enableRecommendation && cache.timeRecommendations.isNotEmpty()) {
                     _timeBasedRecommendations.value = cache.timeRecommendations.map {
                         with(appRepository) { it.toAppInfo() }
                     }
@@ -164,13 +167,15 @@ class LauncherViewModel @Inject constructor(
                 _isHomeDataReady.value = true
                 _isDataReady.value = true  // 有历史数据即允许内容可见
 
-                // 延迟 100ms 加载时间推荐，确保首页先渲染
-                delay(100)
-                val recommendations = appRepository.getTimeBasedRecommendations()
-                if (recommendations.isNotEmpty()) {
-                    _timeBasedRecommendations.value = recommendations
-                    _showTimeRecommendation.value = true
-                    startAutoDismissTimer()
+                if (enableRecommendation) {
+                    // 延迟 100ms 加载时间推荐，确保首页先渲染
+                    delay(100)
+                    val recommendations = appRepository.getTimeBasedRecommendations()
+                    if (recommendations.isNotEmpty()) {
+                        _timeBasedRecommendations.value = recommendations
+                        _showTimeRecommendation.value = true
+                        startAutoDismissTimer()
+                    }
                 }
 
                 // 后台同步最新数据
@@ -199,8 +204,10 @@ class LauncherViewModel @Inject constructor(
             allAppsGrouped.collect { apps ->
                 if (apps.isNotEmpty() && !_isDataReady.value) {
                     _isDataReady.value = true
-                    // 如果还没有时间推荐数据，尝试加载
-                    if (_timeBasedRecommendations.value.isEmpty()) {
+                    // 如果还没有时间推荐数据且功能已启用，尝试加载
+                    if (_timeBasedRecommendations.value.isEmpty()
+                        && settings.value.layout.showTimeRecommendation
+                    ) {
                         val recommendations = appRepository.getTimeBasedRecommendations()
                         if (recommendations.isNotEmpty()) {
                             _timeBasedRecommendations.value = recommendations
@@ -218,8 +225,10 @@ class LauncherViewModel @Inject constructor(
                 appRepository.observeGraylist()
             ) { blacklist, graylist -> blacklist.size to graylist.size }
                 .collect {
-                    // 仅在已有推荐数据时重新获取
-                    if (_timeBasedRecommendations.value.isNotEmpty()) {
+                    // 仅在功能启用且已有推荐数据时重新获取
+                    if (_timeBasedRecommendations.value.isNotEmpty()
+                        && settings.value.layout.showTimeRecommendation
+                    ) {
                         _timeBasedRecommendations.value = appRepository.getTimeBasedRecommendations()
                     }
                 }
@@ -450,7 +459,10 @@ class LauncherViewModel @Inject constructor(
      * 如果有推荐数据但 FAB 被隐藏了，恢复显示
      */
     fun restoreTimeRecommendation() {
-        if (_timeBasedRecommendations.value.isNotEmpty() && !_showTimeRecommendation.value) {
+        if (settings.value.layout.showTimeRecommendation
+            && _timeBasedRecommendations.value.isNotEmpty()
+            && !_showTimeRecommendation.value
+        ) {
             _showTimeRecommendation.value = true
         }
     }

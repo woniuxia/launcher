@@ -41,6 +41,7 @@ class SettingsRepository @Inject constructor(
     private val HOME_DISPLAY_COUNT_KEY = intPreferencesKey("layout_home_display_count")
     private val DRAWER_FREQUENT_COUNT_KEY = intPreferencesKey("layout_drawer_frequent_count")
     private val TEXT_SIZE_KEY = intPreferencesKey("layout_text_size")
+    private val SHOW_TIME_RECOMMENDATION_KEY = booleanPreferencesKey("layout_show_time_recommendation")
 
     // === Appearance Keys ===
     private val THEME_KEY = stringPreferencesKey("appearance_theme")
@@ -81,7 +82,8 @@ class SettingsRepository @Inject constructor(
                 verticalOffset = prefs[VERTICAL_OFFSET_KEY] ?: 0,
                 homeDisplayCount = prefs[HOME_DISPLAY_COUNT_KEY] ?: 16,
                 drawerFrequentCount = prefs[DRAWER_FREQUENT_COUNT_KEY] ?: 5,
-                textSize = prefs[TEXT_SIZE_KEY] ?: 12
+                textSize = prefs[TEXT_SIZE_KEY] ?: 12,
+                showTimeRecommendation = prefs[SHOW_TIME_RECOMMENDATION_KEY] ?: true
             ),
             appearance = AppearanceSettings(
                 theme = Theme.valueOf(prefs[THEME_KEY] ?: Theme.SYSTEM.name),
@@ -125,7 +127,8 @@ class SettingsRepository @Inject constructor(
             verticalOffset = prefs[VERTICAL_OFFSET_KEY] ?: 0,
             homeDisplayCount = prefs[HOME_DISPLAY_COUNT_KEY] ?: 16,
             drawerFrequentCount = prefs[DRAWER_FREQUENT_COUNT_KEY] ?: 5,
-            textSize = prefs[TEXT_SIZE_KEY] ?: 12
+            textSize = prefs[TEXT_SIZE_KEY] ?: 12,
+            showTimeRecommendation = prefs[SHOW_TIME_RECOMMENDATION_KEY] ?: true
         )
     }
 
@@ -139,6 +142,7 @@ class SettingsRepository @Inject constructor(
             prefs[HOME_DISPLAY_COUNT_KEY] = layout.homeDisplayCount
             prefs[DRAWER_FREQUENT_COUNT_KEY] = layout.drawerFrequentCount
             prefs[TEXT_SIZE_KEY] = layout.textSize
+            prefs[SHOW_TIME_RECOMMENDATION_KEY] = layout.showTimeRecommendation
         }
     }
 
