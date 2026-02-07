@@ -70,7 +70,9 @@ fun AppDrawerPage(
     listState: LazyListState,
     onAppClick: (AppInfo) -> Unit,
     onSettingsClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    externalSelectedLetter: String? = null,
+    onExternalLetterConsumed: () -> Unit = {}
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -211,6 +213,8 @@ fun AppDrawerPage(
                         }
                     },
                     showSettings = true,
+                    externalSelectedLetter = externalSelectedLetter,
+                    onExternalLetterConsumed = onExternalLetterConsumed,
                     modifier = Modifier
                         .fillMaxHeight(0.67f)
                         .padding(vertical = 32.dp, horizontal = 4.dp)

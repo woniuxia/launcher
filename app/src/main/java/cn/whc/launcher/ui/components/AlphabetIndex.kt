@@ -7,9 +7,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -46,16 +46,19 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import kotlinx.coroutines.delay
 import cn.whc.launcher.ui.theme.BorderLight
 import cn.whc.launcher.ui.theme.OnSurfacePrimary
 import cn.whc.launcher.ui.theme.OnSurfaceSecondary
 import cn.whc.launcher.ui.theme.OnSurfaceTertiary
 import cn.whc.launcher.ui.theme.PrimaryBlue
-import cn.whc.launcher.ui.theme.PrimaryBlueDark
 import cn.whc.launcher.ui.theme.SecondaryPurple
 import cn.whc.launcher.ui.theme.ShadowColorLight
 import cn.whc.launcher.ui.theme.SurfaceLight
@@ -81,7 +84,9 @@ fun AlphabetIndexBar(
     showFavorites: Boolean = false,
     onFavoritesClick: (() -> Unit)? = null,
     showSettings: Boolean = false,
-    onSettingsClick: (() -> Unit)? = null
+    onSettingsClick: (() -> Unit)? = null,
+    externalSelectedLetter: String? = null,
+    onExternalLetterConsumed: () -> Unit = {}
 ) {
     // 构建字母列表
     val letters = remember(availableLetters, showFavorites, showSettings) {
@@ -94,7 +99,34 @@ fun AlphabetIndexBar(
     }
     var selectedLetter by remember { mutableStateOf<String?>(null) }
     var showPopup by remember { mutableStateOf(false) }
+    var isTouching by remember { mutableStateOf(false) }
+    var dragY by remember { mutableStateOf(0f) }
+    var columnHeightPx by remember { mutableStateOf(0) }
     val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+
+    // 外部触发的字母选中：显示弹窗并计算 Y 位置
+    LaunchedEffect(externalSelectedLetter) {
+        if (externalSelectedLetter != null && externalSelectedLetter in letters) {
+            val index = letters.indexOf(externalSelectedLetter)
+            selectedLetter = externalSelectedLetter
+            // 根据字母索引和列高度计算居中 Y 位置
+            if (columnHeightPx > 0 && letters.isNotEmpty()) {
+                val letterH = columnHeightPx.toFloat() / letters.size
+                dragY = letterH * index + letterH / 2
+            }
+            showPopup = true
+            onExternalLetterConsumed()
+        }
+    }
+
+    // 手指离开后延时隐藏弹窗；触摸期间弹窗始终可见
+    LaunchedEffect(showPopup, isTouching) {
+        if (showPopup && !isTouching) {
+            delay(600)
+            showPopup = false
+        }
+    }
 
     // 处理字母选择的回调
     val handleLetterSelected: (String) -> Unit = { letter ->
@@ -112,40 +144,49 @@ fun AlphabetIndexBar(
                 .width(28.dp)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(14.dp))
+                .onSizeChanged { columnHeightPx = it.height }
                 .pointerInput(letters) {
-                    detectVerticalDragGestures(
-                        onDragStart = { offset ->
-                            showPopup = true
-                            val index = (offset.y / (size.height.toFloat() / letters.size))
-                                .toInt()
-                                .coerceIn(0, letters.lastIndex)
-                            val letter = letters[index]
-                            if (letter != selectedLetter) {
-                                selectedLetter = letter
-                                if (hapticEnabled) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                }
-                                handleLetterSelected(letter)
-                            }
-                        },
-                        onVerticalDrag = { change, _ ->
-                            change.consume()
-                            val index = (change.position.y / (size.height.toFloat() / letters.size))
-                                .toInt()
-                                .coerceIn(0, letters.lastIndex)
-                            val letter = letters[index]
-                            if (letter != selectedLetter) {
-                                selectedLetter = letter
-                                if (hapticEnabled) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                }
-                                handleLetterSelected(letter)
-                            }
-                        },
-                        onDragEnd = {
-                            showPopup = false
+                    val letterHeight = { size.height.toFloat() / letters.size }
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        down.consume()
+
+                        // 按下立即显示弹窗
+                        isTouching = true
+                        val downIndex = (down.position.y / letterHeight())
+                            .toInt().coerceIn(0, letters.lastIndex)
+                        val downLetter = letters[downIndex]
+                        selectedLetter = downLetter
+                        dragY = down.position.y
+                        showPopup = true
+                        if (hapticEnabled) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         }
-                    )
+                        handleLetterSelected(downLetter)
+
+                        // 等待拖拽或抬起
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (!change.pressed) {
+                                change.consume()
+                                isTouching = false
+                                break
+                            }
+                            change.consume()
+                            dragY = change.position.y
+                            val moveIndex = (change.position.y / letterHeight())
+                                .toInt().coerceIn(0, letters.lastIndex)
+                            val moveLetter = letters[moveIndex]
+                            if (moveLetter != selectedLetter) {
+                                selectedLetter = moveLetter
+                                if (hapticEnabled) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                handleLetterSelected(moveLetter)
+                            }
+                        }
+                    }
                 },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -173,14 +214,7 @@ fun AlphabetIndexBar(
                         modifier = Modifier
                             .size(22.dp)
                             .clip(CircleShape)
-                            .background(bgColor)
-                            .clickable {
-                                selectedLetter = letter
-                                if (hapticEnabled) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                }
-                                handleLetterSelected(letter)
-                            },
+                            .background(bgColor),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -195,48 +229,49 @@ fun AlphabetIndexBar(
             }
         }
 
-        // 放大提示弹窗
+        // 放大提示弹窗 - 显示在索引栏左侧，Y 轴跟随手指
         if (showPopup && selectedLetter != null) {
-            LetterPopup(letter = selectedLetter!!)
+            val popupSizePx = with(density) { 56.dp.toPx() }
+            val gapPx = with(density) { 8.dp.toPx() }
+            val offsetX = (-(popupSizePx + gapPx)).toInt()
+            val offsetY = (dragY - popupSizePx / 2).toInt()
+            LetterPopup(letter = selectedLetter!!, offsetX = offsetX, offsetY = offsetY)
         }
     }
 }
 
 /**
- * 字母放大提示弹窗 - Material You 风格
+ * 字母放大提示弹窗 - 浅灰色风格，跟随手指位置
  */
 @Composable
-private fun BoxScope.LetterPopup(letter: String) {
+private fun BoxScope.LetterPopup(letter: String, offsetX: Int, offsetY: Int) {
     Popup(
-        alignment = Alignment.Center,
+        alignment = Alignment.TopStart,
+        offset = IntOffset(offsetX, offsetY),
         properties = PopupProperties(focusable = false)
     ) {
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(56.dp)
                 .shadow(
-                    elevation = 12.dp,
-                    shape = RoundedCornerShape(16.dp),
+                    elevation = 6.dp,
+                    shape = RoundedCornerShape(12.dp),
                     ambientColor = ShadowColorLight,
-                    spotColor = PrimaryBlueDark.copy(alpha = 0.3f)
+                    spotColor = Color.Black.copy(alpha = 0.15f)
                 )
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(PrimaryBlue, SecondaryPurple)
-                    )
-                )
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White.copy(alpha = 0.55f))
                 .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(16.dp)
+                    width = 0.5.dp,
+                    color = Color.Black.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(12.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = letter,
-                color = Color.White,
-                fontSize = 30.sp,
+                color = Color(0xFF333333),
+                fontSize = 26.sp,
                 fontWeight = FontWeight.Bold
             )
         }

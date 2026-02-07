@@ -109,6 +109,9 @@ fun LauncherContent(
     // 标记是否通过字母索引跳转（避免重置列表位置）
     var isLetterNavigation by remember { mutableStateOf(false) }
 
+    // 从首页字母索引跳转时，传递选中字母给抽屉页显示弹窗
+    var pendingLetterForDrawer by remember { mutableStateOf<String?>(null) }
+
     // 监听页面变化
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -168,6 +171,7 @@ fun LauncherContent(
                             drawerLetterPositions[letter]?.let { position ->
                                 coroutineScope.launch {
                                     isLetterNavigation = true
+                                    pendingLetterForDrawer = letter
                                     // 直接跳转到抽屉页
                                     pagerState.scrollToPage(1)
                                     // 直接定位到对应位置，偏移1/3屏幕高度使其显示在2/3处
@@ -203,6 +207,8 @@ fun LauncherContent(
                         listState = drawerListState,
                         onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
                         onSettingsClick = onNavigateToSettings,
+                        externalSelectedLetter = pendingLetterForDrawer,
+                        onExternalLetterConsumed = { pendingLetterForDrawer = null },
                         modifier = Modifier.alpha(contentAlpha)
                     )
                 }
