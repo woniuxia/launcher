@@ -65,13 +65,13 @@ fun TimeBasedRecommendation(
     // 展开状态：启动时默认展开
     // key 绑定 visible，当 visible 变化时重置状态
     var isExpanded by remember(visible) { mutableStateOf(false) }
-    // 是否已完成首次自动收起
-    var hasAutoCollapsed by remember(visible) { mutableStateOf(false) }
+    // 是否已完成首次自动收起（默认 true，不自动展开）
+    var hasAutoCollapsed by remember(visible) { mutableStateOf(true) }
     // 是否正在拖动
     var isDragging by remember { mutableStateOf(false) }
 
     val expandProgress = remember { Animatable(0f) }
-    val fabAlphaAnim = remember { Animatable(1f) }
+    val fabAlphaAnim = remember { Animatable(0.6f) }
 
     // 拖动偏移量
     var dragOffsetX by remember { mutableFloatStateOf(fabOffsetX) }
