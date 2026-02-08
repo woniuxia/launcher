@@ -15,6 +15,7 @@ import cn.whc.launcher.data.dao.BlacklistDao
 import cn.whc.launcher.data.dao.DailyStatsDao
 import cn.whc.launcher.data.dao.GraylistDao
 import cn.whc.launcher.data.dao.LaunchTimeDao
+import cn.whc.launcher.data.dao.TimeRecommendationResult
 import cn.whc.launcher.data.entity.AppEntity
 import cn.whc.launcher.data.entity.BlacklistEntity
 import cn.whc.launcher.data.entity.GraylistEntity
@@ -335,8 +336,8 @@ class AppRepository @Inject constructor(
 
     /**
      * 获取时间段推荐应用 (Top 5)
-     * 算法: 当前时间 +-30分钟窗口内启动次数最多的应用，不足5个用频率排序补充
-     * 过滤黑名单和灰名单应用
+     * 算法: 当前时间 +-30分钟窗口内启动次数最多的应用，不足5个用最近使用的应用补充
+     * SQL 层直接过滤黑名单、灰名单和隐藏应用
      */
     suspend fun getTimeBasedRecommendations(): List<AppInfo> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
@@ -354,51 +355,23 @@ class AppRepository @Inject constructor(
         // 判断是否跨天
         val isCrossDay = startMinutes > endMinutes
 
-        // 查询时间窗口内的统计
-        val timeWindowStats = if (isCrossDay) {
-            launchTimeDao.getTimeWindowStatsCrossDay(startMinutes, endMinutes, cutoffTimestamp)
+        // 单次 SQL 查询: JOIN apps + 排除黑灰名单 + LIMIT 5
+        val recommendations = if (isCrossDay) {
+            launchTimeDao.getTimeRecommendationsCrossDay(startMinutes, endMinutes, cutoffTimestamp)
         } else {
-            launchTimeDao.getTimeWindowStats(startMinutes, endMinutes, cutoffTimestamp)
+            launchTimeDao.getTimeRecommendations(startMinutes, endMinutes, cutoffTimestamp)
         }
 
-        // 获取黑名单和灰名单
-        val blacklistKeys = blacklistDao.getAllBlacklistList()
-            .map { it.toComponentKey() }
-            .toSet()
-        val graylistKeys = graylistDao.getAllGraylistList()
-            .map { it.toComponentKey() }
-            .toSet()
+        val timeBasedApps = recommendations.map { it.toAppInfo() }
 
-        // 过滤黑名单、灰名单和隐藏应用，取 Top 5
-        val timeBasedApps = timeWindowStats
-            .filter { stat ->
-                val key = "${stat.packageName}/${stat.activityName}"
-                key !in blacklistKeys && key !in graylistKeys
-            }
-            .take(5)
-            .mapNotNull { stat ->
-                appDao.getApp(stat.packageName, stat.activityName)
-                    ?.takeIf { !it.isHidden }
-                    ?.toAppInfo(stat.launchCount.toFloat())
-            }
-
-        // 如果不足5个，用频率排序补充
+        // 如果不足5个，用最近使用的应用补充
         if (timeBasedApps.size < 5) {
-            val existingKeys = timeBasedApps.map { it.componentKey }.toSet()
-            val scores = getScores()
-
-            val supplementApps = appDao.getAllAppsList()
-                .filter { app ->
-                    val key = app.toComponentKey()
-                    key !in blacklistKeys &&
-                            key !in graylistKeys &&
-                            key !in existingKeys &&
-                            !app.isHidden
-                }
-                .map { it.toAppInfo(scores[it.toComponentKey()] ?: 0f) }
-                .sortedByDescending { it.score }
-                .take(5 - timeBasedApps.size)
-
+            val excludeKeys = timeBasedApps.map { it.componentKey }
+            val supplementEntities = appDao.getSupplementApps(
+                excludeKeys = excludeKeys,
+                limit = 5 - timeBasedApps.size
+            )
+            val supplementApps = supplementEntities.map { it.toAppInfo(0f) }
             return@withContext timeBasedApps + supplementApps
         }
 
@@ -801,6 +774,14 @@ class AppRepository @Inject constructor(
     )
 
     private fun AppEntity.toComponentKey() = "$packageName/$activityName"
+
+    private fun TimeRecommendationResult.toAppInfo() = AppInfo(
+        packageName = packageName,
+        activityName = activityName,
+        displayName = customName ?: appName,
+        score = launchCount.toFloat(),
+        firstLetter = firstLetter
+    )
 
     private fun BlacklistEntity.toComponentKey() = "$packageName/$activityName"
 

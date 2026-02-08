@@ -73,6 +73,24 @@ interface AppDao {
 
     @Query("UPDATE apps SET home_position = -1 WHERE home_position >= 0")
     suspend fun clearAllHomePositions()
+
+    /**
+     * 获取补足推荐的应用：排除黑灰名单、隐藏应用和已有推荐，按最近使用时间排序
+     */
+    @Query("""
+        SELECT * FROM apps
+        WHERE is_hidden = 0
+          AND (package_name || '/' || activity_name) NOT IN (:excludeKeys)
+          AND (package_name || '/' || activity_name) NOT IN (
+              SELECT package_name || '/' || activity_name FROM blacklist
+          )
+          AND (package_name || '/' || activity_name) NOT IN (
+              SELECT package_name || '/' || activity_name FROM graylist
+          )
+        ORDER BY last_launch_time DESC
+        LIMIT :limit
+    """)
+    suspend fun getSupplementApps(excludeKeys: List<String>, limit: Int): List<AppEntity>
 }
 
 data class ComponentKey(

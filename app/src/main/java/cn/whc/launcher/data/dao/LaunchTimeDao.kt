@@ -47,6 +47,65 @@ interface LaunchTimeDao {
         cutoffTimestamp: Long
     ): List<TimeWindowStat>
 
+    /**
+     * 查询时间窗口内的推荐应用 (不跨天情况)
+     * JOIN apps 获取应用信息，LEFT JOIN 排除黑灰名单和隐藏应用，LIMIT 5
+     */
+    @Query("""
+        SELECT ltr.package_name, ltr.activity_name, a.app_name, a.custom_name,
+               a.first_letter, COUNT(*) as launch_count
+        FROM launch_time_records ltr
+        INNER JOIN apps a ON ltr.package_name = a.package_name
+                          AND ltr.activity_name = a.activity_name
+                          AND a.is_hidden = 0
+        LEFT JOIN blacklist b ON ltr.package_name = b.package_name
+                              AND ltr.activity_name = b.activity_name
+        LEFT JOIN graylist g ON ltr.package_name = g.package_name
+                             AND ltr.activity_name = g.activity_name
+        WHERE ltr.time_of_day_minutes >= :startMinutes
+          AND ltr.time_of_day_minutes <= :endMinutes
+          AND ltr.launch_timestamp >= :cutoffTimestamp
+          AND b.package_name IS NULL
+          AND g.package_name IS NULL
+        GROUP BY ltr.package_name, ltr.activity_name
+        ORDER BY launch_count DESC
+        LIMIT 5
+    """)
+    suspend fun getTimeRecommendations(
+        startMinutes: Int,
+        endMinutes: Int,
+        cutoffTimestamp: Long
+    ): List<TimeRecommendationResult>
+
+    /**
+     * 查询时间窗口内的推荐应用 (跨天情况: 如 23:30 - 00:30)
+     * JOIN apps 获取应用信息，LEFT JOIN 排除黑灰名单和隐藏应用，LIMIT 5
+     */
+    @Query("""
+        SELECT ltr.package_name, ltr.activity_name, a.app_name, a.custom_name,
+               a.first_letter, COUNT(*) as launch_count
+        FROM launch_time_records ltr
+        INNER JOIN apps a ON ltr.package_name = a.package_name
+                          AND ltr.activity_name = a.activity_name
+                          AND a.is_hidden = 0
+        LEFT JOIN blacklist b ON ltr.package_name = b.package_name
+                              AND ltr.activity_name = b.activity_name
+        LEFT JOIN graylist g ON ltr.package_name = g.package_name
+                             AND ltr.activity_name = g.activity_name
+        WHERE (ltr.time_of_day_minutes >= :startMinutes OR ltr.time_of_day_minutes <= :endMinutes)
+          AND ltr.launch_timestamp >= :cutoffTimestamp
+          AND b.package_name IS NULL
+          AND g.package_name IS NULL
+        GROUP BY ltr.package_name, ltr.activity_name
+        ORDER BY launch_count DESC
+        LIMIT 5
+    """)
+    suspend fun getTimeRecommendationsCrossDay(
+        startMinutes: Int,
+        endMinutes: Int,
+        cutoffTimestamp: Long
+    ): List<TimeRecommendationResult>
+
     @Query("DELETE FROM launch_time_records WHERE launch_timestamp < :cutoffTimestamp")
     suspend fun deleteOldRecords(cutoffTimestamp: Long)
 }
@@ -54,5 +113,14 @@ interface LaunchTimeDao {
 data class TimeWindowStat(
     @ColumnInfo(name = "package_name") val packageName: String,
     @ColumnInfo(name = "activity_name") val activityName: String,
+    @ColumnInfo(name = "launch_count") val launchCount: Int
+)
+
+data class TimeRecommendationResult(
+    @ColumnInfo(name = "package_name") val packageName: String,
+    @ColumnInfo(name = "activity_name") val activityName: String,
+    @ColumnInfo(name = "app_name") val appName: String,
+    @ColumnInfo(name = "custom_name") val customName: String?,
+    @ColumnInfo(name = "first_letter") val firstLetter: String,
     @ColumnInfo(name = "launch_count") val launchCount: Int
 )
