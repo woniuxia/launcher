@@ -1,5 +1,6 @@
 package cn.whc.launcher.ui.viewmodel
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cn.whc.launcher.data.cache.HomePageCache
@@ -18,6 +19,7 @@ import cn.whc.launcher.data.repository.SettingsRepository
 import cn.whc.launcher.util.IconCache
 import cn.whc.launcher.util.SearchHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -28,10 +30,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.util.Calendar
 import javax.inject.Inject
 
@@ -141,19 +144,49 @@ class LauncherViewModel @Inject constructor(
     // 缓存的首页快照 (用于保存)
     private var cachedSnapshot: HomePageSnapshot? = null
     private var lastRecommendationTimeBucket: Int? = null
+    private val startupTraceStartMs = SystemClock.elapsedRealtime()
 
     private companion object {
+        private const val TAG = "StartupTrace"
         private const val RECOMMENDATION_TIME_BUCKET_MINUTES = 30
+        private const val POST_START_SYNC_DELAY_MS = 250L
+        private const val ICON_PRELOAD_PRIMARY_COUNT = 6
+        private const val ICON_PRELOAD_SECONDARY_DELAY_MS = 300L
+        private const val STARTUP_SYNC_MIN_INTERVAL_MS = 30 * 60 * 1000L
     }
 
     init {
-        // 冷启动优化：优先从缓存加载，立即显示首页
-        viewModelScope.launch {
-            settingsRepository.ensureSchemaV2()
+        Timber.tag(TAG).d("[S1] ViewModel init start")
 
-            // 读取持久化设置，判断是否需要加载推荐数据
-            val enableRecommendation = settingsRepository.settings.first().layout.showTimeRecommendation
+        // 设置迁移放到后台执行，避免阻塞冷启动首屏
+        viewModelScope.launch(Dispatchers.IO) {
+            val migrationStart = SystemClock.elapsedRealtime()
+            Timber.tag(TAG).d("[S2] schema migration start")
+            val migrated = settingsRepository.ensureSchemaV2()
+            val cost = SystemClock.elapsedRealtime() - migrationStart
+            if (migrated) {
+                Timber.tag(TAG).d("[S2] schema migration done, cost=%dms", cost)
+            } else {
+                Timber.tag(TAG).d("[S2] schema migration skipped, cost=%dms", cost)
+            }
+        }
+
+        // 冷启动优化：优先从缓存加载，立即显示首页
+        viewModelScope.launch(Dispatchers.Default) {
+            val coldStartBegin = SystemClock.elapsedRealtime()
+            Timber.tag(TAG).d("[S3] cold-start pipeline begin")
+
+            // 使用内存中的最新设置，避免冷启动同步读取 DataStore
+            val enableRecommendation = settings.value.layout.showTimeRecommendation
+            Timber.tag(TAG).d("[S3] recommendation enabled=%s", enableRecommendation)
+
+            val cacheLoadStart = SystemClock.elapsedRealtime()
             val cache = appRepository.loadHomePageFromCache()
+            Timber.tag(TAG).d(
+                "[S4] cache load done, hit=%s, cost=%dms",
+                cache != null,
+                SystemClock.elapsedRealtime() - cacheLoadStart
+            )
 
             if (cache != null) {
                 // 有缓存：立即使用缓存数据显示首页
@@ -166,40 +199,106 @@ class LauncherViewModel @Inject constructor(
                     lastRecommendationTimeBucket = currentTimeBucket()
                     startAutoDismissTimer()
                 } else if (enableRecommendation) {
-                    refreshTimeRecommendationsIfNeeded(force = true)
+                    refreshTimeRecommendationsIfNeeded(force = true, source = "init-cache")
                 }
                 cachedSnapshot = cache
                 _isHomeDataReady.value = true
                 _isDataReady.value = true  // 缓存就绪即允许内容可见，无需等 Room
+                Timber.tag(TAG).d(
+                    "[S5] splash released (cache path), elapsed=%dms, homeApps=%d",
+                    SystemClock.elapsedRealtime() - startupTraceStartMs,
+                    _homeApps.value.size
+                )
 
                 // 预加载首页图标，使 Compose 首帧渲染时 LRU 已有数据
                 val allComponentKeys = _homeApps.value.map { it.componentKey } +
                     _timeBasedRecommendations.value.map { it.componentKey }
                 if (allComponentKeys.isNotEmpty()) {
-                    iconCache.preloadIcons(allComponentKeys)
+                    viewModelScope.launch {
+                        val primaryKeys = allComponentKeys.take(ICON_PRELOAD_PRIMARY_COUNT)
+                        val secondaryKeys = allComponentKeys.drop(ICON_PRELOAD_PRIMARY_COUNT)
+
+                        val primaryStart = SystemClock.elapsedRealtime()
+                        Timber.tag(TAG).d(
+                            "[S6A] icon preload start, count=%d",
+                            primaryKeys.size
+                        )
+                        iconCache.preloadIcons(primaryKeys)
+                        Timber.tag(TAG).d(
+                            "[S6A] icon preload done, cost=%dms",
+                            SystemClock.elapsedRealtime() - primaryStart
+                        )
+
+                        if (secondaryKeys.isNotEmpty()) {
+                            delay(ICON_PRELOAD_SECONDARY_DELAY_MS)
+                            val secondaryStart = SystemClock.elapsedRealtime()
+                            Timber.tag(TAG).d(
+                                "[S6B] icon preload start, count=%d, delayed=%dms",
+                                secondaryKeys.size,
+                                ICON_PRELOAD_SECONDARY_DELAY_MS
+                            )
+                            iconCache.preloadIcons(secondaryKeys)
+                            Timber.tag(TAG).d(
+                                "[S6B] icon preload done, cost=%dms",
+                                SystemClock.elapsedRealtime() - secondaryStart
+                            )
+                        }
+                    }
                 }
 
                 // 后台异步验证和更新数据
-                appRepository.syncInstalledApps()
-            } else if (appRepository.hasHistoryData()) {
-                // 无缓存但有历史数据：从数据库加载
+                viewModelScope.launch {
+                    val cacheAgeMs = System.currentTimeMillis() - cache.timestamp
+                    if (cacheAgeMs < STARTUP_SYNC_MIN_INTERVAL_MS) {
+                        Timber.tag(TAG).d(
+                            "[S7] app sync skipped, cacheAge=%dms < minInterval=%dms",
+                            cacheAgeMs,
+                            STARTUP_SYNC_MIN_INTERVAL_MS
+                        )
+                    } else {
+                        delay(POST_START_SYNC_DELAY_MS)
+                        val syncStart = SystemClock.elapsedRealtime()
+                        Timber.tag(TAG).d("[S7] app sync start (delayed=%dms)", POST_START_SYNC_DELAY_MS)
+                        appRepository.syncInstalledApps()
+                        Timber.tag(TAG).d(
+                            "[S7] app sync done, cost=%dms",
+                            SystemClock.elapsedRealtime() - syncStart
+                        )
+                    }
+                }
+            } else {
+                // 无缓存场景：优先展示空首页，后台同步数据
                 _isHomeDataReady.value = true
-                _isDataReady.value = true  // 有历史数据即允许内容可见
+                _isDataReady.value = true
+                Timber.tag(TAG).d(
+                    "[S5] splash released (no-cache path), elapsed=%dms",
+                    SystemClock.elapsedRealtime() - startupTraceStartMs
+                )
 
                 if (enableRecommendation) {
                     // 延迟 100ms 加载时间推荐，确保首页先渲染
-                    delay(100)
-                    refreshTimeRecommendationsIfNeeded(force = true)
+                    viewModelScope.launch {
+                        delay(100)
+                        refreshTimeRecommendationsIfNeeded(force = true, source = "init-no-cache")
+                    }
                 }
 
-                // 后台同步最新数据
-                appRepository.syncInstalledApps()
-            } else {
-                // 首次启动：先显示空首页，后台同步数据
-                _isHomeDataReady.value = true
-                _isDataReady.value = true  // 首次启动也立即允许内容可见
-                appRepository.syncInstalledApps()
+                viewModelScope.launch {
+                    delay(POST_START_SYNC_DELAY_MS)
+                    val syncStart = SystemClock.elapsedRealtime()
+                    Timber.tag(TAG).d("[S7] app sync start (delayed=%dms)", POST_START_SYNC_DELAY_MS)
+                    appRepository.syncInstalledApps()
+                    Timber.tag(TAG).d(
+                        "[S7] app sync done, cost=%dms",
+                        SystemClock.elapsedRealtime() - syncStart
+                    )
+                }
             }
+
+            Timber.tag(TAG).d(
+                "[S8] cold-start pipeline end, cost=%dms",
+                SystemClock.elapsedRealtime() - coldStartBegin
+            )
         }
 
         // 监听 homeAppsFlow 更新 _homeApps 并保存缓存
@@ -224,7 +323,7 @@ class LauncherViewModel @Inject constructor(
                     if (_timeBasedRecommendations.value.isEmpty()
                         && settings.value.layout.showTimeRecommendation
                     ) {
-                        refreshTimeRecommendationsIfNeeded(force = true)
+                        refreshTimeRecommendationsIfNeeded(force = true, source = "all-apps-ready")
                     }
                 }
             }
@@ -236,12 +335,13 @@ class LauncherViewModel @Inject constructor(
                 appRepository.observeBlacklist(),
                 appRepository.observeGraylist()
             ) { blacklist, graylist -> blacklist.size to graylist.size }
+                .drop(1)
                 .collect {
                     // 仅在功能启用且已有推荐数据时重新获取
                     if (_timeBasedRecommendations.value.isNotEmpty()
                         && settings.value.layout.showTimeRecommendation
                     ) {
-                        refreshTimeRecommendationsIfNeeded(force = true)
+                        refreshTimeRecommendationsIfNeeded(force = true, source = "list-changed")
                     }
                 }
         }
@@ -298,8 +398,12 @@ class LauncherViewModel @Inject constructor(
         return age <= HomePageCache.TIME_RECOMMENDATION_MAX_AGE_MS
     }
 
-    private fun refreshTimeRecommendationsIfNeeded(force: Boolean = false) {
+    private fun refreshTimeRecommendationsIfNeeded(
+        force: Boolean = false,
+        source: String = "unknown"
+    ) {
         if (!settings.value.layout.showTimeRecommendation) return
+        if (!_isHomeDataReady.value && !force) return
         if (!force && _currentPage.value != 0) return
 
         val currentBucket = currentTimeBucket()
@@ -309,11 +413,23 @@ class LauncherViewModel @Inject constructor(
         if (!shouldRefresh) return
 
         viewModelScope.launch {
+            val recommendationStart = SystemClock.elapsedRealtime()
+            Timber.tag(TAG).d(
+                "[R1] recommendation refresh start, source=%s, force=%s, bucket=%d",
+                source,
+                force,
+                currentBucket
+            )
             val recommendations = appRepository.getTimeBasedRecommendations()
             _timeBasedRecommendations.value = recommendations
             _showTimeRecommendation.value = recommendations.isNotEmpty()
             lastRecommendationTimeBucket = currentBucket
             saveHomePageCache()
+            Timber.tag(TAG).d(
+                "[R1] recommendation refresh done, count=%d, cost=%dms",
+                recommendations.size,
+                SystemClock.elapsedRealtime() - recommendationStart
+            )
         }
     }
 
@@ -510,7 +626,7 @@ class LauncherViewModel @Inject constructor(
      * 如果有推荐数据但 FAB 被隐藏了，恢复显示
      */
     fun restoreTimeRecommendation() {
-        refreshTimeRecommendationsIfNeeded()
+        refreshTimeRecommendationsIfNeeded(source = "resume")
 
         if (settings.value.layout.showTimeRecommendation
             && _timeBasedRecommendations.value.isNotEmpty()

@@ -122,7 +122,8 @@ class AppRepository @Inject constructor(
         val snapshot = HomePageSnapshot(
             homeApps = homeApps.map { it.toCachedAppInfo() },
             availableLetters = availableLetters,
-            scores = cachedScores,
+            // 冷启动首屏不依赖全量 scores，避免缓存文件过大导致 JSON 解析变慢
+            scores = emptyMap(),
             timeRecommendations = timeRecommendations.map { it.toCachedAppInfo() },
             timeRecommendationsTimestamp = timeRecommendationsTimestamp,
             timestamp = System.currentTimeMillis()

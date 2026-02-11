@@ -24,6 +24,8 @@ import cn.whc.launcher.data.model.Theme
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,6 +36,12 @@ class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val dataStore = context.settingsDataStore
+    private val schemaEnsureMutex = Mutex()
+
+    private companion object {
+        @Volatile
+        private var schemaEnsuredInProcess: Boolean = false
+    }
 
     // === Schema Keys ===
     private val SETTINGS_SCHEMA_VERSION_KEY = intPreferencesKey("settings_schema_version")
@@ -169,28 +177,39 @@ class SettingsRepository @Inject constructor(
 
     val layoutSettings: Flow<LayoutSettings> = settings.map { it.layout }
 
-    suspend fun ensureSchemaV2() {
-        dataStore.edit { prefs ->
-            val currentVersion = prefs[SETTINGS_SCHEMA_VERSION_KEY] ?: 1
-            if (currentVersion >= 2) return@edit
+    suspend fun ensureSchemaV2(): Boolean {
+        if (schemaEnsuredInProcess) return false
 
-            prefs[PRESET_KEY] = PersonalPreset.BALANCED.name
-            prefs[CORE_HOME_DISPLAY_COUNT_KEY] = prefs[HOME_DISPLAY_COUNT_KEY] ?: 16
-            prefs[CORE_DRAWER_FREQUENT_COUNT_KEY] = prefs[DRAWER_FREQUENT_COUNT_KEY] ?: 5
-            prefs[CORE_SHOW_SEARCH_KEY] = prefs[ENABLE_SEARCH_KEY] ?: true
-            prefs[CORE_SHOW_TIME_RECOMMENDATION_KEY] = prefs[SHOW_TIME_RECOMMENDATION_KEY] ?: true
-            prefs[CORE_BACKGROUND_TYPE_KEY] = (prefs[BACKGROUND_TYPE_KEY] ?: BackgroundType.BLUR.name)
-            prefs[CORE_BLUR_STRENGTH_KEY] = prefs[BLUR_STRENGTH_KEY] ?: 20
-            prefs[CORE_ICON_SIZE_KEY] = prefs[ICON_SIZE_KEY] ?: 56
-            prefs[CORE_HAPTIC_FEEDBACK_KEY] = prefs[HAPTIC_FEEDBACK_KEY] ?: true
+        return schemaEnsureMutex.withLock {
+            if (schemaEnsuredInProcess) return@withLock false
 
-            prefs[ADVANCED_SHOW_LUNAR_KEY] = prefs[SHOW_LUNAR_KEY] ?: true
-            prefs[ADVANCED_SHOW_FESTIVAL_KEY] = prefs[SHOW_FESTIVAL_KEY] ?: true
-            prefs[ADVANCED_SWIPE_SENSITIVITY_KEY] =
-                prefs[SWIPE_SENSITIVITY_KEY] ?: SwipeSensitivity.MEDIUM.name
-            prefs[ADVANCED_ENABLE_T9_KEY] = prefs[ENABLE_T9_KEY] ?: false
+            var migrated = false
+            dataStore.edit { prefs ->
+                val currentVersion = prefs[SETTINGS_SCHEMA_VERSION_KEY] ?: 1
+                if (currentVersion >= 2) return@edit
 
-            prefs[SETTINGS_SCHEMA_VERSION_KEY] = 2
+                prefs[PRESET_KEY] = PersonalPreset.BALANCED.name
+                prefs[CORE_HOME_DISPLAY_COUNT_KEY] = prefs[HOME_DISPLAY_COUNT_KEY] ?: 16
+                prefs[CORE_DRAWER_FREQUENT_COUNT_KEY] = prefs[DRAWER_FREQUENT_COUNT_KEY] ?: 5
+                prefs[CORE_SHOW_SEARCH_KEY] = prefs[ENABLE_SEARCH_KEY] ?: true
+                prefs[CORE_SHOW_TIME_RECOMMENDATION_KEY] = prefs[SHOW_TIME_RECOMMENDATION_KEY] ?: true
+                prefs[CORE_BACKGROUND_TYPE_KEY] = (prefs[BACKGROUND_TYPE_KEY] ?: BackgroundType.BLUR.name)
+                prefs[CORE_BLUR_STRENGTH_KEY] = prefs[BLUR_STRENGTH_KEY] ?: 20
+                prefs[CORE_ICON_SIZE_KEY] = prefs[ICON_SIZE_KEY] ?: 56
+                prefs[CORE_HAPTIC_FEEDBACK_KEY] = prefs[HAPTIC_FEEDBACK_KEY] ?: true
+
+                prefs[ADVANCED_SHOW_LUNAR_KEY] = prefs[SHOW_LUNAR_KEY] ?: true
+                prefs[ADVANCED_SHOW_FESTIVAL_KEY] = prefs[SHOW_FESTIVAL_KEY] ?: true
+                prefs[ADVANCED_SWIPE_SENSITIVITY_KEY] =
+                    prefs[SWIPE_SENSITIVITY_KEY] ?: SwipeSensitivity.MEDIUM.name
+                prefs[ADVANCED_ENABLE_T9_KEY] = prefs[ENABLE_T9_KEY] ?: false
+
+                prefs[SETTINGS_SCHEMA_VERSION_KEY] = 2
+                migrated = true
+            }
+
+            schemaEnsuredInProcess = true
+            migrated
         }
     }
 

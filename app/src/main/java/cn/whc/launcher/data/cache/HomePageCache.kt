@@ -103,7 +103,11 @@ class HomePageCache @Inject constructor(
                     return@withContext null
                 }
 
-                Timber.tag(TAG).d("Cache loaded successfully (age: %d ms)", age)
+                Timber.tag(TAG).d(
+                    "Cache loaded successfully (age: %d ms, size: %d bytes)",
+                    age,
+                    cacheFile.length()
+                )
                 snapshot
             } catch (e: Exception) {
                 Timber.tag(TAG).w(e, "Failed to load cache, deleting corrupted file")
@@ -121,7 +125,7 @@ class HomePageCache @Inject constructor(
             try {
                 val content = json.encodeToString(HomePageSnapshot.serializer(), snapshot)
                 cacheFile.writeText(content)
-                Timber.tag(TAG).d("Cache saved (size: %d bytes)", content.length)
+                Timber.tag(TAG).d("Cache saved (size: %d bytes)", cacheFile.length())
             } catch (e: Exception) {
                 Timber.tag(TAG).w(e, "Failed to save cache")
             }
