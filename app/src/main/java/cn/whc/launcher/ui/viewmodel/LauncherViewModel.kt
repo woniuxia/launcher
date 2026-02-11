@@ -6,6 +6,8 @@ import cn.whc.launcher.data.cache.HomePageCache
 import cn.whc.launcher.data.cache.HomePageSnapshot
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.AppSettings
+import cn.whc.launcher.data.model.CoreSettings
+import cn.whc.launcher.data.model.PersonalPreset
 import cn.whc.launcher.data.model.LayoutSettings
 import cn.whc.launcher.data.model.AppearanceSettings
 import cn.whc.launcher.data.model.ClockSettings
@@ -24,6 +26,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -114,6 +118,9 @@ class LauncherViewModel @Inject constructor(
     private val _searchResults = MutableStateFlow<List<AppInfo>>(emptyList())
     val searchResults: StateFlow<List<AppInfo>> = _searchResults.asStateFlow()
 
+    // 搜索基础数据缓存（由 allAppsGrouped 构建，避免每次输入访问数据库）
+    private val _searchBaseApps = MutableStateFlow<List<AppInfo>>(emptyList())
+
     // 当前页面状态
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
@@ -142,6 +149,8 @@ class LauncherViewModel @Inject constructor(
     init {
         // 冷启动优化：优先从缓存加载，立即显示首页
         viewModelScope.launch {
+            settingsRepository.ensureSchemaV2()
+
             // 读取持久化设置，判断是否需要加载推荐数据
             val enableRecommendation = settingsRepository.settings.first().layout.showTimeRecommendation
             val cache = appRepository.loadHomePageFromCache()
@@ -207,6 +216,8 @@ class LauncherViewModel @Inject constructor(
         // 监听全部数据就绪状态（allAppsGrouped 有数据时标记就绪）
         viewModelScope.launch {
             allAppsGrouped.collect { apps ->
+                _searchBaseApps.value = apps.values.flatten()
+
                 if (apps.isNotEmpty() && !_isDataReady.value) {
                     _isDataReady.value = true
                     // 如果还没有时间推荐数据且功能已启用，尝试加载
@@ -232,6 +243,25 @@ class LauncherViewModel @Inject constructor(
                     ) {
                         refreshTimeRecommendationsIfNeeded(force = true)
                     }
+                }
+        }
+
+        // 搜索防抖与去重
+        viewModelScope.launch {
+            _searchQuery
+                .debounce(120)
+                .distinctUntilChanged()
+                .collect { query ->
+                    if (query.isBlank()) {
+                        _searchResults.value = emptyList()
+                        return@collect
+                    }
+
+                    _searchResults.value = SearchHelper.searchApps(
+                        query = query,
+                        allApps = _searchBaseApps.value,
+                        enablePinyin = settings.value.search.enablePinyin
+                    )
                 }
         }
     }
@@ -270,6 +300,7 @@ class LauncherViewModel @Inject constructor(
 
     private fun refreshTimeRecommendationsIfNeeded(force: Boolean = false) {
         if (!settings.value.layout.showTimeRecommendation) return
+        if (!force && _currentPage.value != 0) return
 
         val currentBucket = currentTimeBucket()
         val shouldRefresh = force || lastRecommendationTimeBucket == null ||
@@ -310,18 +341,6 @@ class LauncherViewModel @Inject constructor(
      */
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
-        viewModelScope.launch {
-            if (query.isBlank()) {
-                _searchResults.value = emptyList()
-            } else {
-                val allApps = appRepository.getAllApps()
-                _searchResults.value = SearchHelper.searchApps(
-                    query = query,
-                    allApps = allApps,
-                    enablePinyin = settings.value.search.enablePinyin
-                )
-            }
-        }
     }
 
     /**
@@ -533,6 +552,49 @@ class LauncherViewModel @Inject constructor(
     fun updateFabPosition(offsetX: Float, offsetY: Float) {
         viewModelScope.launch {
             settingsRepository.updateFabPosition(offsetX, offsetY)
+        }
+    }
+
+    fun applyPreset(preset: PersonalPreset) {
+        val current = settings.value
+        val target = when (preset) {
+            PersonalPreset.LITE -> CoreSettings(
+                preset = preset,
+                homeDisplayCount = 12,
+                drawerFrequentCount = 4,
+                showSearch = true,
+                showTimeRecommendation = false,
+                backgroundType = current.appearance.backgroundType,
+                blurStrength = 12,
+                iconSize = 54,
+                hapticFeedback = false
+            )
+            PersonalPreset.BALANCED -> CoreSettings(
+                preset = preset,
+                homeDisplayCount = 16,
+                drawerFrequentCount = 5,
+                showSearch = true,
+                showTimeRecommendation = true,
+                backgroundType = current.appearance.backgroundType,
+                blurStrength = 20,
+                iconSize = 56,
+                hapticFeedback = true
+            )
+            PersonalPreset.FOCUS -> CoreSettings(
+                preset = preset,
+                homeDisplayCount = 20,
+                drawerFrequentCount = 6,
+                showSearch = true,
+                showTimeRecommendation = true,
+                backgroundType = current.appearance.backgroundType,
+                blurStrength = 10,
+                iconSize = 58,
+                hapticFeedback = true
+            )
+        }
+
+        viewModelScope.launch {
+            settingsRepository.updateCoreSettings(target)
         }
     }
 }

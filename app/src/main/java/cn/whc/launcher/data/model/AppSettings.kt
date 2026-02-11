@@ -4,11 +4,39 @@ package cn.whc.launcher.data.model
  * 应用设置数据模型
  */
 data class AppSettings(
+    val core: CoreSettings = CoreSettings(),
+    val advanced: AdvancedSettings = AdvancedSettings(),
     val layout: LayoutSettings = LayoutSettings(),
     val appearance: AppearanceSettings = AppearanceSettings(),
     val clock: ClockSettings = ClockSettings(),
     val search: SearchSettings = SearchSettings(),
     val gesture: GestureSettings = GestureSettings()
+)
+
+enum class PersonalPreset {
+    LITE,
+    BALANCED,
+    FOCUS
+}
+
+data class CoreSettings(
+    val preset: PersonalPreset = PersonalPreset.BALANCED,
+    val homeDisplayCount: Int = 16,
+    val drawerFrequentCount: Int = 5,
+    val showSearch: Boolean = true,
+    val showTimeRecommendation: Boolean = true,
+    val backgroundType: BackgroundType = BackgroundType.BLUR,
+    val blurStrength: Int = 20,
+    val iconSize: Int = 56,
+    val hapticFeedback: Boolean = true
+)
+
+data class AdvancedSettings(
+    val showLunar: Boolean = true,
+    val showFestival: Boolean = true,
+    val swipeSensitivity: SwipeSensitivity = SwipeSensitivity.MEDIUM,
+    val enableT9: Boolean = false,
+    val schemaVersion: Int = 2
 )
 
 data class LayoutSettings(

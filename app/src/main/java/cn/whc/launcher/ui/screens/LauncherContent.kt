@@ -216,7 +216,7 @@ fun LauncherContent(
         }
 
         // 悬浮搜索按钮 (仅在应用抽屉页且数据就绪后显示)
-        if (isDataReady && pagerState.currentPage == 1 && settings.search.enableSearch) {
+        if (isDataReady && pagerState.currentPage == 1 && settings.core.showSearch) {
             FloatingSearchButton(
                 isExpanded = isSearchActive,
                 searchQuery = searchQuery,

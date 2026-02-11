@@ -195,6 +195,33 @@ class AppRepository @Inject constructor(
     }
 
     /**
+     * 获取指定包名下所有可启动 Activity（增量同步用）
+     */
+    private fun getLaunchableAppsByPackage(packageName: String): List<InstalledApp> {
+        if (packageName == context.packageName) return emptyList()
+
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            `package` = packageName
+        }
+
+        return packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+            .mapNotNull { resolveInfo ->
+                val appInfo = resolveInfo.activityInfo.applicationInfo
+                val activityName = resolveInfo.activityInfo.name
+                val appName = resolveInfo.loadLabel(packageManager).toString()
+                val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+
+                InstalledApp(
+                    packageName = packageName,
+                    activityName = activityName,
+                    appName = appName,
+                    isSystemApp = isSystemApp
+                )
+            }
+    }
+
+    /**
      * 获取首页应用列表 (按频率排序)
      * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
      * 过滤黑名单和灰名单应用
@@ -608,8 +635,7 @@ class AppRepository @Inject constructor(
      * 处理应用安装 - 重新扫描该包名下所有 launcher activity
      */
     suspend fun onAppInstalled(packageName: String) = withContext(Dispatchers.IO) {
-        val installedApps = getInstalledLaunchableApps()
-        val newApps = installedApps.filter { it.packageName == packageName }
+        val newApps = getLaunchableAppsByPackage(packageName)
 
         if (newApps.isNotEmpty()) {
             appDao.insertAll(newApps.map { it.toEntity() })
@@ -632,8 +658,7 @@ class AppRepository @Inject constructor(
      * 处理应用更新 - 重新扫描该包名下所有 launcher activity
      */
     suspend fun onAppUpdated(packageName: String) = withContext(Dispatchers.IO) {
-        val installedApps = getInstalledLaunchableApps()
-        val updatedApps = installedApps.filter { it.packageName == packageName }
+        val updatedApps = getLaunchableAppsByPackage(packageName)
 
         // 获取现有的 activity
         val existingKeys = appDao.getAllComponentKeys()

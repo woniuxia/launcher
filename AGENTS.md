@@ -20,6 +20,23 @@
 - 名单机制：黑名单应用隐藏；灰名单应用保留在抽屉，但不进入首页/常用/推荐。
 - 系统集成：`AppChangeReceiver` 监听安装卸载更新，`DataCleanupWorker` 每日清理 30 天外统计。
 
+## 预设档位说明（极简 / 均衡 / 专注）
+- 本项目新增个人化预设档位：`LITE`（极简）、`BALANCED`（均衡）、`FOCUS`（专注）。
+- 预设入口位于设置主页顶部，优先于细粒度开关；若发生冲突，以“最近一次显式修改”生效。
+- `LITE`（极简）：
+  - 目标：最低复杂度与较低资源占用。
+  - 默认行为：`homeDisplayCount=12`、`drawerFrequentCount=4`、`showSearch=true`、`showTimeRecommendation=false`、`blurStrength=12`、`iconSize=54`、`hapticFeedback=false`。
+- `BALANCED`（均衡）：
+  - 目标：功能与体验平衡，作为默认推荐档位。
+  - 默认行为：`homeDisplayCount=16`、`drawerFrequentCount=5`、`showSearch=true`、`showTimeRecommendation=true`、`blurStrength=20`、`iconSize=56`、`hapticFeedback=true`。
+- `FOCUS`（专注）：
+  - 目标：高效率访问与稳定操作反馈。
+  - 默认行为：`homeDisplayCount=20`、`drawerFrequentCount=6`、`showSearch=true`、`showTimeRecommendation=true`、`blurStrength=10`、`iconSize=58`、`hapticFeedback=true`。
+- 数据结构约定：
+  - `AppSettings` 采用 `core + advanced + legacy` 并行模型；`core` 承载预设主参数，`advanced` 承载低频高级项。
+  - `SettingsRepository` 使用 `schema v2` 键空间（`core_*`、`advanced_*`、`preset`），并保持对旧键的读取兼容。
+  - 迁移入口：应用启动后由 `LauncherViewModel` 调用 `ensureSchemaV2()`，完成旧数据到 v2 的惰性迁移。
+
 ## 构建、测试与开发命令
 请在仓库根目录（`E:\Projects\launcher`）执行以下命令。
 

@@ -57,6 +57,7 @@ import androidx.core.graphics.drawable.toBitmap
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.AppSettings
 import cn.whc.launcher.data.model.BackgroundType
+import cn.whc.launcher.data.model.PersonalPreset
 import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.data.model.Theme
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
@@ -130,8 +131,18 @@ private fun SettingsMainScreen(
 
     SettingsSubPage(title = "设置", onNavigateBack = onNavigateBack) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            // 个性化
-            item { SettingsSection(title = "个性化") }
+            // 预设档位
+            item { SettingsSection(title = "预设档位") }
+
+            item {
+                PresetSettingItem(
+                    selected = settings.core.preset,
+                    onPresetSelected = { viewModel.applyPreset(it) }
+                )
+            }
+
+            // 核心设置
+            item { SettingsSection(title = "核心设置") }
 
             item {
                 NavigationSettingItem(
@@ -153,8 +164,16 @@ private fun SettingsMainScreen(
                 )
             }
 
-            // 功能
-            item { SettingsSection(title = "功能") }
+            item {
+                NavigationSettingItem(
+                    title = "应用显示管理",
+                    subtitle = "黑名单 ${blacklist.size} 个，灰名单 ${graylist.size} 个",
+                    onClick = { onNavigateTo("appManage") }
+                )
+            }
+
+            // 高级设置
+            item { SettingsSection(title = "高级设置") }
 
             item {
                 NavigationSettingItem(
@@ -167,7 +186,7 @@ private fun SettingsMainScreen(
             item {
                 NavigationSettingItem(
                     title = "搜索",
-                    subtitle = if (settings.search.enableSearch) "已启用" else "已关闭",
+                    subtitle = if (settings.core.showSearch) "已启用" else "已关闭",
                     onClick = { onNavigateTo("search") }
                 )
             }
@@ -186,17 +205,6 @@ private fun SettingsMainScreen(
                 )
             }
 
-            // 管理
-            item { SettingsSection(title = "管理") }
-
-            item {
-                NavigationSettingItem(
-                    title = "应用显示管理",
-                    subtitle = "黑名单 ${blacklist.size} 个，灰名单 ${graylist.size} 个",
-                    onClick = { onNavigateTo("appManage") }
-                )
-            }
-
             // 关于
             item { SettingsSection(title = "关于") }
 
@@ -209,6 +217,62 @@ private fun SettingsMainScreen(
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
         }
+    }
+}
+
+@Composable
+private fun PresetSettingItem(
+    selected: PersonalPreset,
+    onPresetSelected: (PersonalPreset) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        PresetChip(
+            title = "极简",
+            selected = selected == PersonalPreset.LITE,
+            onClick = { onPresetSelected(PersonalPreset.LITE) },
+            modifier = Modifier.weight(1f)
+        )
+        PresetChip(
+            title = "均衡",
+            selected = selected == PersonalPreset.BALANCED,
+            onClick = { onPresetSelected(PersonalPreset.BALANCED) },
+            modifier = Modifier.weight(1f)
+        )
+        PresetChip(
+            title = "专注",
+            selected = selected == PersonalPreset.FOCUS,
+            onClick = { onPresetSelected(PersonalPreset.FOCUS) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun PresetChip(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) Color(0xFF007AFF).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = if (selected) Color(0xFF66B2FF) else Color.White.copy(alpha = 0.8f),
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
     }
 }
 
