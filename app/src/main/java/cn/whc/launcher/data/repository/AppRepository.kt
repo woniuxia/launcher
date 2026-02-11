@@ -55,6 +55,9 @@ class AppRepository @Inject constructor(
 
     companion object {
         private const val TAG = "AppRepository"
+        private const val TIME_RECOMMENDATION_WINDOW_MINUTES = 30
+        private const val TIME_RECOMMENDATION_CONFIDENCE_THRESHOLD = 0.45f
+        private const val TIME_RECOMMENDATION_MIN_LAUNCH_COUNT = 2
     }
 
     // 评分缓存 - 使用 componentKey (packageName/activityName) 作为键
@@ -113,13 +116,15 @@ class AppRepository @Inject constructor(
     suspend fun saveHomePageCache(
         homeApps: List<AppInfo>,
         availableLetters: Set<String>,
-        timeRecommendations: List<AppInfo>
+        timeRecommendations: List<AppInfo>,
+        timeRecommendationsTimestamp: Long = System.currentTimeMillis()
     ) {
         val snapshot = HomePageSnapshot(
             homeApps = homeApps.map { it.toCachedAppInfo() },
             availableLetters = availableLetters,
             scores = cachedScores,
             timeRecommendations = timeRecommendations.map { it.toCachedAppInfo() },
+            timeRecommendationsTimestamp = timeRecommendationsTimestamp,
             timestamp = System.currentTimeMillis()
         )
         homePageCache.save(snapshot)
@@ -343,9 +348,13 @@ class AppRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val calendar = Calendar.getInstance()
         val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+        val isWeekend = when (calendar.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.SATURDAY, Calendar.SUNDAY -> 1
+            else -> 0
+        }
 
         // 计算时间窗口: 当前时间 +-30分钟
-        val windowSize = 30
+        val windowSize = TIME_RECOMMENDATION_WINDOW_MINUTES
         val startMinutes = (currentMinutes - windowSize + 1440) % 1440
         val endMinutes = (currentMinutes + windowSize) % 1440
 
@@ -356,10 +365,31 @@ class AppRepository @Inject constructor(
         val isCrossDay = startMinutes > endMinutes
 
         // 单次 SQL 查询: JOIN apps + 排除黑灰名单 + LIMIT 5
-        val recommendations = if (isCrossDay) {
-            launchTimeDao.getTimeRecommendationsCrossDay(startMinutes, endMinutes, cutoffTimestamp)
+        val recommendationsRaw = if (isCrossDay) {
+            launchTimeDao.getTimeRecommendationsCrossDay(
+                startMinutes = startMinutes,
+                endMinutes = endMinutes,
+                cutoffTimestamp = cutoffTimestamp,
+                currentMinutes = currentMinutes,
+                windowMinutes = windowSize,
+                nowTimestamp = now,
+                isWeekend = isWeekend
+            )
         } else {
-            launchTimeDao.getTimeRecommendations(startMinutes, endMinutes, cutoffTimestamp)
+            launchTimeDao.getTimeRecommendations(
+                startMinutes = startMinutes,
+                endMinutes = endMinutes,
+                cutoffTimestamp = cutoffTimestamp,
+                currentMinutes = currentMinutes,
+                windowMinutes = windowSize,
+                nowTimestamp = now,
+                isWeekend = isWeekend
+            )
+        }
+
+        val recommendations = recommendationsRaw.filter {
+            it.launchCount >= TIME_RECOMMENDATION_MIN_LAUNCH_COUNT ||
+                it.weightedScore >= TIME_RECOMMENDATION_CONFIDENCE_THRESHOLD
         }
 
         val timeBasedApps = recommendations.map { it.toAppInfo() }
@@ -779,7 +809,7 @@ class AppRepository @Inject constructor(
         packageName = packageName,
         activityName = activityName,
         displayName = customName ?: appName,
-        score = launchCount.toFloat(),
+        score = weightedScore.toFloat(),
         firstLetter = firstLetter
     )
 

@@ -1,4 +1,4 @@
-package cn.whc.launcher.ui.components
+﻿package cn.whc.launcher.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -47,10 +47,9 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * 时间段推荐悬浮组件
- * 位置: 可拖动，位置持久化
- * 样式: FAB + 5个应用图标扇形展开
- * 行为: 启动时展开，3秒后自动收起变透明，支持拖动
+ * 时间段推荐悬浮组件。
+ *
+ * 在 `visible=true` 时显示可拖拽 FAB，展开后以扇形展示最多 5 个推荐应用。
  */
 @Composable
 fun TimeBasedRecommendation(
@@ -62,30 +61,29 @@ fun TimeBasedRecommendation(
     onPositionChanged: (Float, Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 展开状态：启动时默认展开
-    // key 绑定 visible，当 visible 变化时重置状态
+    // 展开状态：当 visible 变化时重置。
     var isExpanded by remember(visible) { mutableStateOf(false) }
-    // 是否已完成首次自动收起（默认 true，不自动展开）
+    // 保持现有行为：默认不进行首次自动展开。
     var hasAutoCollapsed by remember(visible) { mutableStateOf(true) }
-    // 是否正在拖动
+    // 用于避免点击与拖拽手势冲突。
     var isDragging by remember { mutableStateOf(false) }
 
+    // 动画状态：菜单展开进度与 FAB 透明度。
     val expandProgress = remember { Animatable(0f) }
     val fabAlphaAnim = remember { Animatable(0.6f) }
 
-    // 拖动偏移量
+    // FAB 拖拽偏移（可持久化恢复）。
     var dragOffsetX by remember { mutableFloatStateOf(fabOffsetX) }
     var dragOffsetY by remember { mutableFloatStateOf(fabOffsetY) }
 
     val coroutineScope = rememberCoroutineScope()
 
-    // 同步外部传入的位置
+    // 同步外部传入的位置。
     LaunchedEffect(fabOffsetX, fabOffsetY) {
         dragOffsetX = fabOffsetX
         dragOffsetY = fabOffsetY
     }
 
-    // 首次显示时展开，3秒后自动收起
     LaunchedEffect(visible) {
         if (visible && !hasAutoCollapsed) {
             isExpanded = true
@@ -97,7 +95,7 @@ fun TimeBasedRecommendation(
                     stiffness = Spring.StiffnessLow
                 )
             )
-            // 3秒后自动收起（用户手动收起时协程会被取消）
+            // 3 秒后自动收起（拖拽中则不收起）。
             delay(3000)
             if (!isDragging && isExpanded) {
                 isExpanded = false
@@ -106,16 +104,15 @@ fun TimeBasedRecommendation(
                     targetValue = 0f,
                     animationSpec = tween(durationMillis = 200)
                 )
-                // 收起后变半透明
+                // 收起后回到半透明。
                 fabAlphaAnim.animateTo(0.6f, tween(300))
             }
         }
     }
 
-    // 响应手动展开/收起（首次自动展开期间的手动收起也在此处理）
+    // 响应手动展开/收起。
     LaunchedEffect(isExpanded) {
         if (!isExpanded && !hasAutoCollapsed && expandProgress.value > 0f) {
-            // 首次自动展开期间用户手动点击收起
             hasAutoCollapsed = true
             expandProgress.animateTo(
                 targetValue = 0f,
@@ -137,7 +134,7 @@ fun TimeBasedRecommendation(
                     targetValue = 0f,
                     animationSpec = tween(durationMillis = 200)
                 )
-                // 收起后变半透明
+                // 收起后保持半透明。
                 fabAlphaAnim.animateTo(0.6f, tween(300))
             }
         }
@@ -148,19 +145,17 @@ fun TimeBasedRecommendation(
     val iconSize = 44.dp
     val fabSize = 44.dp
 
-    // 角度配置: 5个应用图标左侧半圆展开 (从上到下180度，最常用在上方)
+    // 5 个推荐图标的扇形角度布局。
     val angles = listOf(
-        270.0 * PI / 180.0,  // 上 (最常用)
+        270.0 * PI / 180.0,  // 上
         225.0 * PI / 180.0,  // 左上
         180.0 * PI / 180.0,  // 左
         135.0 * PI / 180.0,  // 左下
         90.0 * PI / 180.0    // 下
     )
 
-    // FAB 交互状态
     val currentFabAlpha = if (isDragging) 1f else fabAlphaAnim.value
 
-    // FAB 始终显示（只要 visible 为 true）
     if (visible) {
         BoxWithConstraints(modifier = modifier) {
             val maxWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
@@ -172,13 +167,13 @@ fun TimeBasedRecommendation(
                     .offset { IntOffset(dragOffsetX.roundToInt(), dragOffsetY.roundToInt()) }
                     .alpha(currentFabAlpha)
             ) {
-                // 展开的应用图标
                 recommendations.take(5).forEachIndexed { index, app ->
                     val angle = angles.getOrElse(index) { angles.last() }
 
                     val offsetX = (cos(angle) * radiusPx * expandProgress.value).roundToInt()
                     val offsetY = (sin(angle) * radiusPx * expandProgress.value).roundToInt()
 
+                    // 图标透明度做阶梯变化，提升展开观感。
                     val itemAlpha = ((expandProgress.value - index * 0.08f) / 0.6f).coerceIn(0f, 1f)
 
                     RecommendationIcon(
@@ -191,7 +186,6 @@ fun TimeBasedRecommendation(
                     )
                 }
 
-                // 中心 FAB 按钮 (支持拖动和点击)
                 Box(
                     modifier = Modifier
                         .size(fabSize)
@@ -230,7 +224,7 @@ fun TimeBasedRecommendation(
                                 },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
-                                    // 限制在屏幕范围内
+                                    // 限制在屏幕可视范围内。
                                     dragOffsetX = (dragOffsetX + dragAmount.x).coerceIn(
                                         -maxWidthPx + fabSizePx,
                                         0f
@@ -273,6 +267,7 @@ private fun RecommendationIcon(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 每个组件使用稳定 key 读取图标缓存。
     val iconCache = cn.whc.launcher.util.LocalIconCache.current
     val componentKey = "${app.packageName}/${app.activityName}"
     var iconBitmap by remember(componentKey) {

@@ -53,7 +53,30 @@ interface LaunchTimeDao {
      */
     @Query("""
         SELECT ltr.package_name, ltr.activity_name, a.app_name, a.custom_name,
-               a.first_letter, COUNT(*) as launch_count
+               a.first_letter,
+               COUNT(*) as launch_count,
+               SUM(
+                   (
+                       (:windowMinutes + 1.0 - MIN(
+                           ABS(ltr.time_of_day_minutes - :currentMinutes),
+                           1440 - ABS(ltr.time_of_day_minutes - :currentMinutes)
+                       )) / (:windowMinutes + 1.0)
+                   )
+                   *
+                   (
+                       1.0 / (1.0 + ((:nowTimestamp - ltr.launch_timestamp) / 86400000.0 / 7.0))
+                   )
+                   *
+                   (
+                       CASE
+                           WHEN (
+                               CAST(strftime('%w', ltr.launch_timestamp / 1000, 'unixepoch', 'localtime') AS INTEGER) IN (0, 6)
+                           ) = :isWeekend
+                           THEN 1.15
+                           ELSE 0.85
+                       END
+                   )
+               ) as weighted_score
         FROM launch_time_records ltr
         INNER JOIN apps a ON ltr.package_name = a.package_name
                           AND ltr.activity_name = a.activity_name
@@ -68,13 +91,17 @@ interface LaunchTimeDao {
           AND b.package_name IS NULL
           AND g.package_name IS NULL
         GROUP BY ltr.package_name, ltr.activity_name
-        ORDER BY launch_count DESC
+        ORDER BY weighted_score DESC, launch_count DESC
         LIMIT 5
     """)
     suspend fun getTimeRecommendations(
         startMinutes: Int,
         endMinutes: Int,
-        cutoffTimestamp: Long
+        cutoffTimestamp: Long,
+        currentMinutes: Int,
+        windowMinutes: Int,
+        nowTimestamp: Long,
+        isWeekend: Int
     ): List<TimeRecommendationResult>
 
     /**
@@ -83,7 +110,30 @@ interface LaunchTimeDao {
      */
     @Query("""
         SELECT ltr.package_name, ltr.activity_name, a.app_name, a.custom_name,
-               a.first_letter, COUNT(*) as launch_count
+               a.first_letter,
+               COUNT(*) as launch_count,
+               SUM(
+                   (
+                       (:windowMinutes + 1.0 - MIN(
+                           ABS(ltr.time_of_day_minutes - :currentMinutes),
+                           1440 - ABS(ltr.time_of_day_minutes - :currentMinutes)
+                       )) / (:windowMinutes + 1.0)
+                   )
+                   *
+                   (
+                       1.0 / (1.0 + ((:nowTimestamp - ltr.launch_timestamp) / 86400000.0 / 7.0))
+                   )
+                   *
+                   (
+                       CASE
+                           WHEN (
+                               CAST(strftime('%w', ltr.launch_timestamp / 1000, 'unixepoch', 'localtime') AS INTEGER) IN (0, 6)
+                           ) = :isWeekend
+                           THEN 1.15
+                           ELSE 0.85
+                       END
+                   )
+               ) as weighted_score
         FROM launch_time_records ltr
         INNER JOIN apps a ON ltr.package_name = a.package_name
                           AND ltr.activity_name = a.activity_name
@@ -97,13 +147,17 @@ interface LaunchTimeDao {
           AND b.package_name IS NULL
           AND g.package_name IS NULL
         GROUP BY ltr.package_name, ltr.activity_name
-        ORDER BY launch_count DESC
+        ORDER BY weighted_score DESC, launch_count DESC
         LIMIT 5
     """)
     suspend fun getTimeRecommendationsCrossDay(
         startMinutes: Int,
         endMinutes: Int,
-        cutoffTimestamp: Long
+        cutoffTimestamp: Long,
+        currentMinutes: Int,
+        windowMinutes: Int,
+        nowTimestamp: Long,
+        isWeekend: Int
     ): List<TimeRecommendationResult>
 
     @Query("DELETE FROM launch_time_records WHERE launch_timestamp < :cutoffTimestamp")
@@ -122,5 +176,6 @@ data class TimeRecommendationResult(
     @ColumnInfo(name = "app_name") val appName: String,
     @ColumnInfo(name = "custom_name") val customName: String?,
     @ColumnInfo(name = "first_letter") val firstLetter: String,
-    @ColumnInfo(name = "launch_count") val launchCount: Int
+    @ColumnInfo(name = "launch_count") val launchCount: Int,
+    @ColumnInfo(name = "weighted_score") val weightedScore: Double
 )

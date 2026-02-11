@@ -2,6 +2,7 @@ package cn.whc.launcher.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.whc.launcher.data.cache.HomePageCache
 import cn.whc.launcher.data.cache.HomePageSnapshot
 import cn.whc.launcher.data.model.AppInfo
 import cn.whc.launcher.data.model.AppSettings
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import javax.inject.Inject
 
 @HiltViewModel
@@ -131,6 +133,11 @@ class LauncherViewModel @Inject constructor(
 
     // 缓存的首页快照 (用于保存)
     private var cachedSnapshot: HomePageSnapshot? = null
+    private var lastRecommendationTimeBucket: Int? = null
+
+    private companion object {
+        private const val RECOMMENDATION_TIME_BUCKET_MINUTES = 30
+    }
 
     init {
         // 冷启动优化：优先从缓存加载，立即显示首页
@@ -142,12 +149,15 @@ class LauncherViewModel @Inject constructor(
             if (cache != null) {
                 // 有缓存：立即使用缓存数据显示首页
                 _homeApps.value = cache.homeApps.map { with(appRepository) { it.toAppInfo() } }
-                if (enableRecommendation && cache.timeRecommendations.isNotEmpty()) {
+                if (enableRecommendation && shouldUseCachedRecommendations(cache)) {
                     _timeBasedRecommendations.value = cache.timeRecommendations.map {
                         with(appRepository) { it.toAppInfo() }
                     }
                     _showTimeRecommendation.value = true
+                    lastRecommendationTimeBucket = currentTimeBucket()
                     startAutoDismissTimer()
+                } else if (enableRecommendation) {
+                    refreshTimeRecommendationsIfNeeded(force = true)
                 }
                 cachedSnapshot = cache
                 _isHomeDataReady.value = true
@@ -170,12 +180,7 @@ class LauncherViewModel @Inject constructor(
                 if (enableRecommendation) {
                     // 延迟 100ms 加载时间推荐，确保首页先渲染
                     delay(100)
-                    val recommendations = appRepository.getTimeBasedRecommendations()
-                    if (recommendations.isNotEmpty()) {
-                        _timeBasedRecommendations.value = recommendations
-                        _showTimeRecommendation.value = true
-                        startAutoDismissTimer()
-                    }
+                    refreshTimeRecommendationsIfNeeded(force = true)
                 }
 
                 // 后台同步最新数据
@@ -208,11 +213,7 @@ class LauncherViewModel @Inject constructor(
                     if (_timeBasedRecommendations.value.isEmpty()
                         && settings.value.layout.showTimeRecommendation
                     ) {
-                        val recommendations = appRepository.getTimeBasedRecommendations()
-                        if (recommendations.isNotEmpty()) {
-                            _timeBasedRecommendations.value = recommendations
-                            _showTimeRecommendation.value = true
-                        }
+                        refreshTimeRecommendationsIfNeeded(force = true)
                     }
                 }
             }
@@ -229,7 +230,7 @@ class LauncherViewModel @Inject constructor(
                     if (_timeBasedRecommendations.value.isNotEmpty()
                         && settings.value.layout.showTimeRecommendation
                     ) {
-                        _timeBasedRecommendations.value = appRepository.getTimeBasedRecommendations()
+                        refreshTimeRecommendationsIfNeeded(force = true)
                     }
                 }
         }
@@ -248,9 +249,40 @@ class LauncherViewModel @Inject constructor(
                 appRepository.saveHomePageCache(
                     homeApps = currentHomeApps,
                     availableLetters = availableLetters,
-                    timeRecommendations = currentRecommendations
+                    timeRecommendations = currentRecommendations,
+                    timeRecommendationsTimestamp = System.currentTimeMillis()
                 )
             }
+        }
+    }
+
+    private fun currentTimeBucket(): Int {
+        val calendar = Calendar.getInstance()
+        val currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+        return currentMinutes / RECOMMENDATION_TIME_BUCKET_MINUTES
+    }
+
+    private fun shouldUseCachedRecommendations(cache: HomePageSnapshot): Boolean {
+        if (cache.timeRecommendations.isEmpty()) return false
+        val age = System.currentTimeMillis() - cache.timeRecommendationsTimestamp
+        return age <= HomePageCache.TIME_RECOMMENDATION_MAX_AGE_MS
+    }
+
+    private fun refreshTimeRecommendationsIfNeeded(force: Boolean = false) {
+        if (!settings.value.layout.showTimeRecommendation) return
+
+        val currentBucket = currentTimeBucket()
+        val shouldRefresh = force || lastRecommendationTimeBucket == null ||
+            lastRecommendationTimeBucket != currentBucket || _timeBasedRecommendations.value.isEmpty()
+
+        if (!shouldRefresh) return
+
+        viewModelScope.launch {
+            val recommendations = appRepository.getTimeBasedRecommendations()
+            _timeBasedRecommendations.value = recommendations
+            _showTimeRecommendation.value = recommendations.isNotEmpty()
+            lastRecommendationTimeBucket = currentBucket
+            saveHomePageCache()
         }
     }
 
@@ -459,6 +491,8 @@ class LauncherViewModel @Inject constructor(
      * 如果有推荐数据但 FAB 被隐藏了，恢复显示
      */
     fun restoreTimeRecommendation() {
+        refreshTimeRecommendationsIfNeeded()
+
         if (settings.value.layout.showTimeRecommendation
             && _timeBasedRecommendations.value.isNotEmpty()
             && !_showTimeRecommendation.value
@@ -470,17 +504,6 @@ class LauncherViewModel @Inject constructor(
     /**
      * 加载时间段推荐应用
      */
-    private fun loadTimeBasedRecommendations() {
-        viewModelScope.launch {
-            val recommendations = appRepository.getTimeBasedRecommendations()
-            if (recommendations.isNotEmpty()) {
-                _timeBasedRecommendations.value = recommendations
-                _showTimeRecommendation.value = true
-                startAutoDismissTimer()
-            }
-        }
-    }
-
     /**
      * 启动自动关闭计时器 (已移至组件内部处理)
      */
