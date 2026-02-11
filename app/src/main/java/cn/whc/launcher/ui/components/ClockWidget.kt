@@ -3,11 +3,12 @@ package cn.whc.launcher.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -80,11 +81,7 @@ fun ClockWidget(
 
     AnimatedVisibility(
         visible = isVisible,
-        enter = fadeIn(animationSpec = tween(300)) +
-                slideInVertically(
-                    animationSpec = tween(300),
-                    initialOffsetY = { -20 }
-                )
+        enter = fadeIn(animationSpec = tween(250))
     ) {
         Column(
             modifier = modifier.clickable(
@@ -146,9 +143,9 @@ fun ClockWidget(
                         LunarCalendar.solarToLunar(currentDate)
                     }
                 }
-                lunar?.let {
+                Box(modifier = Modifier.height(20.dp)) {
                     Text(
-                        text = "农历${it.getFullDateStr()}",
+                        text = lunar?.let { "农历${it.getFullDateStr()}" } ?: "",
                         style = TextStyle(
                             color = OnSurfaceTertiary,
                             fontSize = 14.sp,
@@ -168,12 +165,15 @@ fun ClockWidget(
                         LunarCalendar.getNextEvent(currentDate)
                     }
                 }
-                nextEvent?.let { event ->
-                    val displayText = when (event.daysUntil) {
+                val displayText = nextEvent?.let { event ->
+                    when (event.daysUntil) {
                         0 -> "今天${event.name}"
                         1 -> "明天${event.name}"
                         else -> "距${event.name}还有${event.daysUntil}天"
                     }
+                } ?: ""
+
+                Box(modifier = Modifier.height(20.dp)) {
                     Text(
                         text = displayText,
                         style = TextStyle(

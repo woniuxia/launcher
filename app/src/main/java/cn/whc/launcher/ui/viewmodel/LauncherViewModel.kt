@@ -49,7 +49,7 @@ class LauncherViewModel @Inject constructor(
     val settings: StateFlow<AppSettings> = settingsRepository.settings
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = AppSettings()
         )
 
@@ -57,7 +57,7 @@ class LauncherViewModel @Inject constructor(
     private val layoutSettings = settingsRepository.layoutSettings
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = LayoutSettings()
         )
 
@@ -364,6 +364,7 @@ class LauncherViewModel @Inject constructor(
                     )
                 }
         }
+
     }
 
     /**
