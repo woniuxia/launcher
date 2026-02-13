@@ -23,6 +23,7 @@ import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.data.model.Theme
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -188,6 +189,10 @@ class SettingsRepository @Inject constructor(
                 val currentVersion = prefs[SETTINGS_SCHEMA_VERSION_KEY] ?: 1
                 if (currentVersion >= 2) return@edit
 
+                // 迁移策略：
+                // - 新增 v2 键空间（core_* / advanced_* / preset）；
+                // - 保留旧键不删除，确保旧版本回退或历史读取兼容；
+                // - 默认预设落在 BALANCED，与当前产品默认一致。
                 prefs[PRESET_KEY] = PersonalPreset.BALANCED.name
                 prefs[CORE_HOME_DISPLAY_COUNT_KEY] = prefs[HOME_DISPLAY_COUNT_KEY] ?: 16
                 prefs[CORE_DRAWER_FREQUENT_COUNT_KEY] = prefs[DRAWER_FREQUENT_COUNT_KEY] ?: 5
@@ -340,18 +345,19 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun exportAll(): Map<String, String> {
-        val result = mutableMapOf<String, String>()
-        dataStore.data.collect { prefs ->
-            prefs.asMap().forEach { (key, value) ->
-                result[key.name] = value.toString()
-            }
+        // 单次快照导出，避免对 dataStore.data 持续 collect 导致协程不返回。
+        val prefs = dataStore.data.first()
+        return prefs.asMap().entries.associate { (key, value) ->
+            key.name to value.toString()
         }
-        return result
     }
 
     suspend fun importAll(settings: Map<String, String>) {
         dataStore.edit { prefs ->
             settings.forEach { (key, value) ->
+                // 按 key 语义推断目标类型，导入时做安全解析：
+                // - 解析失败直接跳过，避免坏数据污染本地配置；
+                // - 未识别键按字符串保底落盘，兼容未来扩展键。
                 when {
                     key.startsWith("layout_") || key.startsWith("appearance_blur") ||
                         key.startsWith("appearance_icon_radius") || key.startsWith("core_") -> {

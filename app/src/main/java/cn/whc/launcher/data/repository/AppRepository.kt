@@ -140,6 +140,11 @@ class AppRepository @Inject constructor(
 
     /**
      * 扫描并同步已安装应用到数据库
+     *
+     * 设计目标：
+     * 1) 通过集合差分做增量同步，避免全表清空重建；
+     * 2) 同步过程中不触发排序刷新，只在显式 triggerSortRefresh() 时重算；
+     * 3) 首次同步后预热评分缓存，降低后续首屏排序等待。
      */
     suspend fun syncInstalledApps() = withContext(Dispatchers.IO) {
         val installedApps = getInstalledLaunchableApps()
@@ -226,6 +231,10 @@ class AppRepository @Inject constructor(
      * 获取首页应用列表 (按频率排序)
      * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
      * 过滤黑名单和灰名单应用
+     *
+     * 说明：
+     * - 这里在内存层做最终排序和截断，保证首页与抽屉的排序口径一致；
+     * - distinctUntilChangedBy 只比较 componentKey 顺序，避免分数字段细微变化引发无效重组。
      */
     fun observeHomeApps(limit: Int): Flow<List<AppInfo>> {
         return combine(
@@ -253,6 +262,10 @@ class AppRepository @Inject constructor(
      * 获取应用抽屉常用区应用 (排除首页应用)
      * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
      * 过滤黑名单和灰名单应用
+     *
+     * 关键点：
+     * - 先按统一评分计算首页 TopN，再做排除，确保“首页/常用”互斥且稳定；
+     * - homeKeys 仅在需要排除时计算，减少不必要的临时集合创建。
      */
     fun observeFrequentApps(excludeHomeApps: Boolean, limit: Int, homeAppLimit: Int = 0): Flow<List<AppInfo>> {
         return combine(
@@ -296,6 +309,10 @@ class AppRepository @Inject constructor(
     /**
      * 获取所有应用 (按字母分组)
      * 排序只在 triggerSortRefresh 时更新，点击应用不会实时改变排序
+     *
+     * 说明：
+     * - 分组内按 score 降序，分组键按 A-Z 排序，'#' 固定置后；
+     * - distinctUntilChangedBy 只比较每组 componentKey 顺序，减少 UI 层无意义刷新。
      */
     fun observeAllAppsGrouped(): Flow<Map<String, List<AppInfo>>> {
         return combine(
@@ -371,6 +388,11 @@ class AppRepository @Inject constructor(
      * 获取时间段推荐应用 (Top 5)
      * 算法: 当前时间 +-30分钟窗口内启动次数最多的应用，不足5个用最近使用的应用补充
      * SQL 层直接过滤黑名单、灰名单和隐藏应用
+     *
+     * 说明：
+     * - 先在 SQL 侧完成时间窗口过滤、聚合和 TopN，避免全量记录回传内存；
+     * - 再用 launchCount / weightedScore 双阈值兜底，防止低置信度推荐进入结果；
+     * - 最后使用最近应用补齐到 5 个，保证入口稳定可用。
      */
     suspend fun getTimeBasedRecommendations(): List<AppInfo> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
@@ -599,10 +621,8 @@ class AppRepository @Inject constructor(
      * 获取黑名单应用列表
      */
     fun observeBlacklist(): Flow<List<AppInfo>> {
-        return blacklistDao.getAllBlacklist().map { blacklist ->
-            blacklist.mapNotNull { entity ->
-                appDao.getApp(entity.packageName, entity.activityName)?.toAppInfo(0f)
-            }
+        return blacklistDao.getBlacklistedApps().map { apps ->
+            apps.map { it.toAppInfo(0f) }
         }
     }
 
@@ -625,10 +645,8 @@ class AppRepository @Inject constructor(
      * 获取灰名单应用列表
      */
     fun observeGraylist(): Flow<List<AppInfo>> {
-        return graylistDao.getAllGraylist().map { graylist ->
-            graylist.mapNotNull { entity ->
-                appDao.getApp(entity.packageName, entity.activityName)?.toAppInfo(0f)
-            }
+        return graylistDao.getGraylistedApps().map { apps ->
+            apps.map { it.toAppInfo(0f) }
         }
     }
 
@@ -657,6 +675,11 @@ class AppRepository @Inject constructor(
 
     /**
      * 处理应用更新 - 重新扫描该包名下所有 launcher activity
+     *
+     * 增量策略：
+     * - 先删掉该包中已不存在的 activity；
+     * - 再对仍存在的 activity 执行“更新名称或插入新项”；
+     * - 最后统一失效首页缓存，避免旧快照展示过期入口。
      */
     suspend fun onAppUpdated(packageName: String) = withContext(Dispatchers.IO) {
         val updatedApps = getLaunchableAppsByPackage(packageName)
@@ -701,12 +724,12 @@ class AppRepository @Inject constructor(
     }
 
     /**
-     * 获取评分缓存
-     * 仅在缓存被显式失效时重新计算，避免排序抖动
-     */
-    /**
      * 获取评分缓存 (线程安全)
      * 仅在缓存被显式失效时重新计算，避免排序抖动
+     *
+     * 注意：
+     * - 该函数是排序链路的唯一入口，必须保证并发安全；
+     * - 通过 Mutex 串行化重算，避免多个订阅方并发触发重复计算。
      */
     private suspend fun getScores(): Map<String, Float> = scoreCacheMutex.withLock {
         if (scoreCacheInvalid || cachedScores.isEmpty()) {

@@ -12,7 +12,6 @@ import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.ui.components.FloatingSearchButton
@@ -47,17 +47,17 @@ fun LauncherContent(
     iconCache: IconCache,
     onNavigateToSettings: () -> Unit
 ) {
-    val settings by viewModel.settings.collectAsState()
-    val homeApps by viewModel.homeApps.collectAsState()
-    val frequentApps by viewModel.frequentApps.collectAsState()
-    val allAppsGrouped by viewModel.allAppsGrouped.collectAsState()
-    val isSearchActive by viewModel.isSearchActive.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val searchResults by viewModel.searchResults.collectAsState()
-    val isDataReady by viewModel.isDataReady.collectAsState()
-    val showTimeRecommendation by viewModel.showTimeRecommendation.collectAsState()
-    val timeBasedRecommendations by viewModel.timeBasedRecommendations.collectAsState()
-    val fabPosition by viewModel.fabPosition.collectAsState()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val homeApps by viewModel.homeApps.collectAsStateWithLifecycle()
+    val frequentApps by viewModel.frequentApps.collectAsStateWithLifecycle()
+    val allAppsGrouped by viewModel.allAppsGrouped.collectAsStateWithLifecycle()
+    val isSearchActive by viewModel.isSearchActive.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val isDataReady by viewModel.isDataReady.collectAsStateWithLifecycle()
+    val showTimeRecommendation by viewModel.showTimeRecommendation.collectAsStateWithLifecycle()
+    val timeBasedRecommendations by viewModel.timeBasedRecommendations.collectAsStateWithLifecycle()
+    val fabPosition by viewModel.fabPosition.collectAsStateWithLifecycle()
 
     // 内容淡入动画
     val contentAlpha by animateFloatAsState(
@@ -73,14 +73,19 @@ fun LauncherContent(
     val drawerListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // Launcher 进入后台时刷新排序，此时界面不可见，排序静默完成
-    // 用户返回时直接看到新排序，无跳动
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
-        viewModel.refreshAppSort()
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        viewModel.setForegroundActive(true)
     }
 
-    // 页面重新激活时恢复 FAB
+    // 进入后台仅标记排序脏数据，避免后台触发重算造成额外耗电
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        viewModel.setForegroundActive(false)
+        viewModel.markAppSortDirty()
+    }
+
+    // 页面重新激活时按需刷新排序并恢复 FAB
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshAppSortIfNeeded()
         viewModel.restoreTimeRecommendation()
     }
 

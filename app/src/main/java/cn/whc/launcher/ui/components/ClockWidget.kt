@@ -21,10 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import cn.whc.launcher.data.model.ClockSettings
 import cn.whc.launcher.ui.theme.OnSurfaceSecondary
 import cn.whc.launcher.ui.theme.OnSurfaceTertiary
@@ -32,6 +35,7 @@ import cn.whc.launcher.ui.theme.ShadowColor
 import cn.whc.launcher.util.LunarCalendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalTime
@@ -51,18 +55,21 @@ fun ClockWidget(
     var currentTime by remember { mutableStateOf(LocalTime.now()) }
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
     var isVisible by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     // 入场动画立即触发（不再延迟）
     LaunchedEffect(Unit) {
         isVisible = true
     }
 
-    // 每秒更新时间
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTime = LocalTime.now()
-            currentDate = LocalDate.now()
-            delay(1000)
+    // 仅在前台生命周期更新时间，避免后台无意义唤醒
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (isActive) {
+                currentTime = LocalTime.now()
+                currentDate = LocalDate.now()
+                delay(1000)
+            }
         }
     }
 

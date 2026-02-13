@@ -14,6 +14,7 @@ interface LaunchTimeDao {
 
     /**
      * 查询时间窗口内的应用启动统计 (不跨天情况)
+     * 仅返回原始计数，不包含推荐加权，适合做调试或离线分析。
      */
     @Query("""
         SELECT package_name, activity_name, COUNT(*) as launch_count
@@ -32,6 +33,7 @@ interface LaunchTimeDao {
 
     /**
      * 查询时间窗口内的应用启动统计 (跨天情况: 如 23:30 - 00:30)
+     * 仅窗口判定与不跨天版本不同，其余统计口径一致。
      */
     @Query("""
         SELECT package_name, activity_name, COUNT(*) as launch_count
@@ -50,6 +52,20 @@ interface LaunchTimeDao {
     /**
      * 查询时间窗口内的推荐应用 (不跨天情况)
      * JOIN apps 获取应用信息，LEFT JOIN 排除黑灰名单和隐藏应用，LIMIT 5
+     *
+     * 参数约束：
+     * - startMinutes <= endMinutes，示例：09:30~10:30。
+     * - cutoffTimestamp 通常为“最近30天”边界。
+     *
+     * weighted_score 由三部分相乘后累加得到：
+     * 1) 时间贴合度：离 currentMinutes 越近，单条记录贡献越高；
+     * 2) 新鲜度衰减：越近期的启动记录权重越高；
+     * 3) 工作日/周末匹配：当天类型与历史记录一致时给予更高权重。
+     *
+     * 排序规则：
+     * - 先按 weighted_score 降序；
+     * - 分数接近时按 launch_count 降序兜底；
+     * - 最多返回 5 个候选，减少上层内存处理压力。
      */
     @Query("""
         SELECT ltr.package_name, ltr.activity_name, a.app_name, a.custom_name,
@@ -107,6 +123,14 @@ interface LaunchTimeDao {
     /**
      * 查询时间窗口内的推荐应用 (跨天情况: 如 23:30 - 00:30)
      * JOIN apps 获取应用信息，LEFT JOIN 排除黑灰名单和隐藏应用，LIMIT 5
+     *
+     * 参数约束：
+     * - startMinutes > endMinutes，示例：23:30~00:30。
+     * - 时间窗口采用 OR 条件：
+     *   time_of_day_minutes >= startMinutes OR <= endMinutes。
+     *
+     * 其余加权、过滤和排序语义与 getTimeRecommendations() 保持一致，
+     * 目的是在跨日场景下保持推荐口径不变，只调整窗口判定方式。
      */
     @Query("""
         SELECT ltr.package_name, ltr.activity_name, a.app_name, a.custom_name,
@@ -177,5 +201,9 @@ data class TimeRecommendationResult(
     @ColumnInfo(name = "custom_name") val customName: String?,
     @ColumnInfo(name = "first_letter") val firstLetter: String,
     @ColumnInfo(name = "launch_count") val launchCount: Int,
+    /**
+     * SQL 聚合得到的推荐置信分，值越大表示“当前时间下越可能要用”。
+     * 该值不是全局稳定分数，仅用于本次时间窗口推荐排序。
+     */
     @ColumnInfo(name = "weighted_score") val weightedScore: Double
 )

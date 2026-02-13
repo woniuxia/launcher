@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -127,6 +128,7 @@ class LauncherViewModel @Inject constructor(
     // 当前页面状态
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
+    private val _isForegroundActive = MutableStateFlow(true)
 
     // 时间段推荐相关状态
     private val _timeBasedRecommendations = MutableStateFlow<List<AppInfo>>(emptyList())
@@ -144,6 +146,8 @@ class LauncherViewModel @Inject constructor(
     // 缓存的首页快照 (用于保存)
     private var cachedSnapshot: HomePageSnapshot? = null
     private var lastRecommendationTimeBucket: Int? = null
+    private var isSortDirty: Boolean = false
+    private var lastSortRefreshAtMs: Long = 0L
     private val startupTraceStartMs = SystemClock.elapsedRealtime()
 
     private companion object {
@@ -153,6 +157,7 @@ class LauncherViewModel @Inject constructor(
         private const val ICON_PRELOAD_PRIMARY_COUNT = 6
         private const val ICON_PRELOAD_SECONDARY_DELAY_MS = 300L
         private const val STARTUP_SYNC_MIN_INTERVAL_MS = 30 * 60 * 1000L
+        private const val SORT_REFRESH_MIN_INTERVAL_MS = 10_000L
     }
 
     init {
@@ -301,32 +306,41 @@ class LauncherViewModel @Inject constructor(
             )
         }
 
+        // 前后台门控：后台时停止订阅，减少 Room/Flow 持续开销
         // 监听 homeAppsFlow 更新 _homeApps 并保存缓存
         viewModelScope.launch {
-            homeAppsFlow.collect { apps ->
-                if (apps.isNotEmpty()) {
-                    _homeApps.value = apps
-                    // 保存缓存
-                    saveHomePageCache()
+            _isForegroundActive
+                .flatMapLatest { active ->
+                    if (active) homeAppsFlow else emptyFlow()
                 }
-            }
+                .collect { apps ->
+                    if (apps.isNotEmpty()) {
+                        _homeApps.value = apps
+                        // 保存缓存
+                        saveHomePageCache()
+                    }
+                }
         }
 
         // 监听全部数据就绪状态（allAppsGrouped 有数据时标记就绪）
         viewModelScope.launch {
-            allAppsGrouped.collect { apps ->
-                _searchBaseApps.value = apps.values.flatten()
+            _isForegroundActive
+                .flatMapLatest { active ->
+                    if (active) allAppsGrouped else emptyFlow()
+                }
+                .collect { apps ->
+                    _searchBaseApps.value = apps.values.flatten()
 
-                if (apps.isNotEmpty() && !_isDataReady.value) {
-                    _isDataReady.value = true
-                    // 如果还没有时间推荐数据且功能已启用，尝试加载
-                    if (_timeBasedRecommendations.value.isEmpty()
-                        && settings.value.layout.showTimeRecommendation
-                    ) {
-                        refreshTimeRecommendationsIfNeeded(force = true, source = "all-apps-ready")
+                    if (apps.isNotEmpty() && !_isDataReady.value) {
+                        _isDataReady.value = true
+                        // 如果还没有时间推荐数据且功能已启用，尝试加载
+                        if (_timeBasedRecommendations.value.isEmpty()
+                            && settings.value.layout.showTimeRecommendation
+                        ) {
+                            refreshTimeRecommendationsIfNeeded(force = true, source = "all-apps-ready")
+                        }
                     }
                 }
-            }
         }
 
         // 监听黑灰名单变化，重新获取推荐（含补足逻辑）
@@ -403,11 +417,16 @@ class LauncherViewModel @Inject constructor(
         force: Boolean = false,
         source: String = "unknown"
     ) {
+        // 保护性短路：
+        // 1) 功能未开启：不做任何推荐计算；
+        // 2) 冷启动首屏未就绪且非强制刷新：避免抢占首帧资源；
+        // 3) 非首页且非强制刷新：避免用户在抽屉/设置页时触发无感更新。
         if (!settings.value.layout.showTimeRecommendation) return
         if (!_isHomeDataReady.value && !force) return
         if (!force && _currentPage.value != 0) return
 
         val currentBucket = currentTimeBucket()
+        // 仅在时间桶变化/数据为空/显式强制时刷新，避免同一时间段内重复查询。
         val shouldRefresh = force || lastRecommendationTimeBucket == null ||
             lastRecommendationTimeBucket != currentBucket || _timeBasedRecommendations.value.isEmpty()
 
@@ -476,6 +495,11 @@ class LauncherViewModel @Inject constructor(
      */
     fun setCurrentPage(page: Int) {
         _currentPage.value = page
+    }
+
+    fun setForegroundActive(active: Boolean) {
+        // 由 UI 生命周期驱动：后台时关闭部分重订阅链路，回前台再恢复。
+        _isForegroundActive.value = active
     }
 
     /**
@@ -616,10 +640,28 @@ class LauncherViewModel @Inject constructor(
     }
 
     /**
-     * 刷新应用排序（页面重新激活时调用）
+     * 标记应用排序需要刷新（进入后台时调用）
      */
-    fun refreshAppSort() {
+    fun markAppSortDirty() {
+        isSortDirty = true
+    }
+
+    /**
+     * 按需刷新应用排序（回到前台时调用）
+     *
+     * 触发条件：
+     * - 必须先被 markAppSortDirty() 标记，或 force=true；
+     * - 满足最小刷新间隔，避免短时间频繁前后台切换导致重复重算。
+     */
+    fun refreshAppSortIfNeeded(force: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        val enoughInterval = (now - lastSortRefreshAtMs) >= SORT_REFRESH_MIN_INTERVAL_MS
+        if (!force && !isSortDirty) return
+        if (!force && !enoughInterval) return
+
         appRepository.triggerSortRefresh()
+        isSortDirty = false
+        lastSortRefreshAtMs = now
     }
 
     /**
@@ -672,6 +714,13 @@ class LauncherViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 应用预设档位（LITE/BALANCED/FOCUS）。
+     *
+     * 规则：
+     * - 仅覆盖 core 主参数；高级项继续保留用户当前值；
+     * - backgroundType 继承当前外观设置，避免预设切换导致壁纸风格突变。
+     */
     fun applyPreset(preset: PersonalPreset) {
         val current = settings.value
         val target = when (preset) {

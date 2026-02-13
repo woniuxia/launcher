@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import cn.whc.launcher.data.entity.AppEntity
 import cn.whc.launcher.data.entity.BlacklistEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +12,19 @@ import kotlinx.coroutines.flow.Flow
 interface BlacklistDao {
     @Query("SELECT * FROM blacklist")
     fun getAllBlacklist(): Flow<List<BlacklistEntity>>
+
+    /**
+     * 获取黑名单对应的应用详情。
+     * 排序策略：最近加入优先，其次按应用名稳定排序，避免列表顺序抖动。
+     */
+    @Query("""
+        SELECT a.* FROM apps a
+        INNER JOIN blacklist b
+            ON a.package_name = b.package_name
+           AND a.activity_name = b.activity_name
+        ORDER BY b.added_at DESC, a.app_name ASC
+    """)
+    fun getBlacklistedApps(): Flow<List<AppEntity>>
 
     @Query("SELECT * FROM blacklist")
     suspend fun getAllBlacklistList(): List<BlacklistEntity>
