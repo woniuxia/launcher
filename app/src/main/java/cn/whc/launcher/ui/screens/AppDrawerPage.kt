@@ -27,9 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +50,7 @@ import cn.whc.launcher.data.model.AppSettings
 import cn.whc.launcher.ui.components.AlphabetIndexBar
 import cn.whc.launcher.ui.components.AppListItem
 import cn.whc.launcher.ui.components.LetterHeader
+import cn.whc.launcher.ui.components.SYMBOL_FAVORITES
 import cn.whc.launcher.ui.components.SYMBOL_SETTINGS
 import cn.whc.launcher.ui.theme.OnSurfacePrimary
 import cn.whc.launcher.ui.theme.OnSurfaceSecondary
@@ -57,7 +58,9 @@ import cn.whc.launcher.ui.theme.PrimaryBlue
 import cn.whc.launcher.ui.theme.SecondaryPurple
 import cn.whc.launcher.ui.theme.ShadowColorLight
 import cn.whc.launcher.ui.theme.SurfaceLight
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * 应用抽屉页面
@@ -74,7 +77,12 @@ fun AppDrawerPage(
     externalSelectedLetter: String? = null,
     onExternalLetterConsumed: () -> Unit = {}
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    val indexScrollRequests = remember {
+        MutableSharedFlow<String>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST
+        )
+    }
 
     // 构建列表项
     val listItems = remember(frequentApps, allAppsGrouped) {
@@ -116,6 +124,19 @@ fun AppDrawerPage(
     // 可用字母集合
     val availableLetters by remember(allAppsGrouped) {
         derivedStateOf { allAppsGrouped.keys + SYMBOL_SETTINGS }
+    }
+
+    // 合并高频索引滚动请求，避免拖动时多个 scrollToItem 协程堆积
+    LaunchedEffect(letterPositions, listState) {
+        indexScrollRequests.collectLatest { letter ->
+            val position = if (letter == SYMBOL_FAVORITES) {
+                0
+            } else {
+                letterPositions[letter] ?: return@collectLatest
+            }
+            val offset = -(listState.layoutInfo.viewportSize.height / 3)
+            listState.scrollToItem(position, offset)
+        }
     }
 
     Box(
@@ -196,21 +217,12 @@ fun AppDrawerPage(
                 AlphabetIndexBar(
                     availableLetters = availableLetters,
                     onLetterSelected = { letter ->
-                        letterPositions[letter]?.let { position ->
-                            coroutineScope.launch {
-                                // 直接定位到对应位置，偏移1/3屏幕高度使其显示在2/3处
-                                val offset = -(listState.layoutInfo.viewportSize.height / 3)
-                                listState.scrollToItem(position, offset)
-                            }
-                        }
+                        indexScrollRequests.tryEmit(letter)
                     },
                     hapticEnabled = settings.gesture.hapticFeedback,
                     showFavorites = frequentApps.isNotEmpty(),
                     onFavoritesClick = {
-                        coroutineScope.launch {
-                            // 直接定位到列表顶部（常用区）
-                            listState.scrollToItem(0)
-                        }
+                        indexScrollRequests.tryEmit(SYMBOL_FAVORITES)
                     },
                     showSettings = true,
                     externalSelectedLetter = externalSelectedLetter,

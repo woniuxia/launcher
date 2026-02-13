@@ -28,10 +28,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import cn.whc.launcher.data.model.SwipeSensitivity
 import cn.whc.launcher.ui.components.FloatingSearchButton
+import cn.whc.launcher.ui.components.SYMBOL_FAVORITES
 import cn.whc.launcher.ui.components.SYMBOL_SETTINGS
 import cn.whc.launcher.ui.components.WallpaperBackground
 import cn.whc.launcher.ui.viewmodel.LauncherViewModel
 import cn.whc.launcher.util.IconCache
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
@@ -112,6 +116,34 @@ fun LauncherContent(
     // 从首页字母索引跳转时，传递选中字母给抽屉页显示弹窗
     var pendingLetterForDrawer by remember { mutableStateOf<String?>(null) }
 
+    val drawerNavigationRequests = remember {
+        MutableSharedFlow<String>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST
+        )
+    }
+
+    // 合并首页高频字母索引请求，避免 page + list 双重跳转任务堆积
+    LaunchedEffect(drawerLetterPositions, drawerListState, pagerState) {
+        drawerNavigationRequests.collectLatest { letter ->
+            val position = if (letter == SYMBOL_FAVORITES) {
+                0
+            } else {
+                drawerLetterPositions[letter] ?: return@collectLatest
+            }
+
+            isLetterNavigation = true
+            pendingLetterForDrawer = letter
+
+            if (pagerState.currentPage != 1) {
+                pagerState.scrollToPage(1)
+            }
+
+            val offset = -(drawerListState.layoutInfo.viewportSize.height / 3)
+            drawerListState.scrollToItem(position, offset)
+        }
+    }
+
     // 监听页面变化
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -168,26 +200,11 @@ fun LauncherContent(
                         onAppClick = { viewModel.launchApp(it.packageName, it.activityName) },
                         onClockClick = { viewModel.openClock() },
                         onLetterSelected = { letter ->
-                            drawerLetterPositions[letter]?.let { position ->
-                                coroutineScope.launch {
-                                    isLetterNavigation = true
-                                    pendingLetterForDrawer = letter
-                                    // 直接跳转到抽屉页
-                                    pagerState.scrollToPage(1)
-                                    // 直接定位到对应位置，偏移1/3屏幕高度使其显示在2/3处
-                                    val offset = -(drawerListState.layoutInfo.viewportSize.height / 3)
-                                    drawerListState.scrollToItem(position, offset)
-                                }
-                            }
+                            drawerNavigationRequests.tryEmit(letter)
                         },
                         showFavorites = frequentApps.isNotEmpty(),
                         onFavoritesClick = {
-                            coroutineScope.launch {
-                                isLetterNavigation = true
-                                // 直接跳转到抽屉页并定位到顶部（常用区）
-                                pagerState.scrollToPage(1)
-                                drawerListState.scrollToItem(0)
-                            }
+                            drawerNavigationRequests.tryEmit(SYMBOL_FAVORITES)
                         },
                         showSettings = true,
                         showTimeRecommendation = showTimeRecommendation,

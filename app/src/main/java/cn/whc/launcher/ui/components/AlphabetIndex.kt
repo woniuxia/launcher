@@ -44,6 +44,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.layout.onSizeChanged
@@ -219,10 +220,14 @@ fun AlphabetIndexBar(
                     ) {
                         Text(
                             text = letter,
-                            fontSize = if (isSelected) 11.sp else 10.sp,
-                            color = textColor,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            textAlign = TextAlign.Center
+                            style = TextStyle(
+                                fontSize = if (isSelected) 11.sp else 10.sp,
+                                lineHeight = if (isSelected) 11.sp else 10.sp,
+                                color = textColor,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                textAlign = TextAlign.Center,
+                                platformStyle = PlatformTextStyle(includeFontPadding = false)
+                            )
                         )
                     }
                 }
