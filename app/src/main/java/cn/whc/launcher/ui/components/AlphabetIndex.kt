@@ -1,6 +1,5 @@
 package cn.whc.launcher.ui.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -17,8 +16,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import cn.whc.launcher.ui.theme.BorderLight
 import cn.whc.launcher.ui.theme.OnSurfacePrimary
 import cn.whc.launcher.ui.theme.OnSurfaceSecondary
@@ -105,6 +107,7 @@ fun AlphabetIndexBar(
     var columnHeightPx by remember { mutableStateOf(0) }
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val selectedIndex = remember(selectedLetter, letters) { letters.indexOf(selectedLetter) }
 
     // 外部触发的字母选中：显示弹窗并计算 Y 位置
     LaunchedEffect(externalSelectedLetter) {
@@ -140,11 +143,12 @@ fun AlphabetIndexBar(
     if (letters.isEmpty()) return
 
     Box(modifier = modifier) {
-        Column(
+        Box(
             modifier = Modifier
                 .width(28.dp)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(14.dp))
+                .background(Color.White.copy(alpha = 0.08f))
                 .onSizeChanged { columnHeightPx = it.height }
                 .pointerInput(letters) {
                     val letterHeight = { size.height.toFloat() / letters.size }
@@ -188,34 +192,42 @@ fun AlphabetIndexBar(
                             }
                         }
                     }
-                },
-            horizontalAlignment = Alignment.CenterHorizontally
+                }
         ) {
-            letters.forEach { letter ->
-                val isSelected = letter == selectedLetter && showPopup
-                val bgColor by animateColorAsState(
-                    targetValue = if (isSelected) PrimaryBlue.copy(alpha = 0.3f) else Color.Transparent,
-                    animationSpec = tween(150),
-                    label = "letterBg"
-                )
-                val textColor by animateColorAsState(
-                    targetValue = if (isSelected) PrimaryBlue else OnSurfaceSecondary,
-                    animationSpec = tween(150),
-                    label = "letterColor"
+            if (showPopup && selectedIndex >= 0 && columnHeightPx > 0 && letters.isNotEmpty()) {
+                val letterHeightPx = columnHeightPx.toFloat() / letters.size
+                val targetCenterY = letterHeightPx * selectedIndex + letterHeightPx / 2f
+                val animatedCenterY by animateFloatAsState(
+                    targetValue = targetCenterY,
+                    animationSpec = tween(90),
+                    label = "selectedIndicatorY"
                 )
 
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // 选中时的圆形背景
+                        .align(Alignment.TopCenter)
+                        .offset {
+                            val radiusPx = with(density) { 11.dp.toPx() }
+                            IntOffset(0, (animatedCenterY - radiusPx).roundToInt())
+                        }
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(PrimaryBlue.copy(alpha = 0.24f))
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                letters.forEach { letter ->
+                    val isSelected = letter == selectedLetter && showPopup
+                    val textColor = if (isSelected) PrimaryBlue else OnSurfaceSecondary
+
                     Box(
                         modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(bgColor),
+                            .weight(1f)
+                            .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
